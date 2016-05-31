@@ -1,0 +1,8 @@
+-should I prevent bad input in my functions?
+--like in flip tiles, where the user enters numbers.  SHould i prevent negatives, strings, or null?
+
+-Should I combine roll and flip to be one function? so the user, during their first turn, only gets a roll, but each subsequent turn plays a move and then automatically gets a roll too?  I think I should make it this way
+
+-Separate function for all error strings, and string messages that get shown to player?
+
+-
