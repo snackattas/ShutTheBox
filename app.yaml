@@ -10,7 +10,7 @@ handlers:
   upload: favicon\.ico
 
 - url: /_ah/spi/.*
-  script: api.api
+  script: ShutTheBox.api
 
 # - url: /tasks/cache_average_attempts
 #   script: main.app
