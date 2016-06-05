@@ -26,31 +26,9 @@ def get_by_urlsafe(urlsafe, model):
         else:
             raise
 
-
     entity = key.get()
     if not entity:
         return None
     if not isinstance(entity, model):
         raise ValueError('Incorrect Kind')
     return entity
-
-
-def roll_dice(active_tiles):
-    if six_above_deactivated(active_tiles):
-        return [choice(range(1, 7))]
-    return [choice(range(1, 7)), choice(range(1, 7))]
-
-
-def six_above_deactivated(active_tiles):
-    if filter(lambda n: n>5, active_tiles):
-        return False
-    return True
-
-
-def most_recent_turn(game_key):
-    return Turn.query(ancestor=game_key).order(-Turn.timestamp).get()
-
-
-def create_turn_key(game_key):
-    turn_id = Turn.allocate_ids(size=1, parent=game_key)[0]
-    return ndb.Key(Turn, turn_id, parent=game_key)

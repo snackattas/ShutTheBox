@@ -24,3 +24,6 @@ libraries:
 
 - name: endpoints
   version: latest
+
+- name: ssl
+  version: latest
