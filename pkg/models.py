@@ -7,6 +7,7 @@ import requests
 import logging
 from settings import MAILGUN_DOMAIN_NAME, MAILGUN_PRIVATE_API_KEY
 from settings import MAILGUN_PUBLIC_API_KEY, MAILGUN_SANDBOX_SENDER
+from decimal import Decimal
 
 class User(ndb.Model):
     """User profile"""
@@ -45,7 +46,26 @@ class Game(ndb.Model):
     def most_recent_turn(self):
         return Turn.query(ancestor=self.key).order(-Turn.timestamp).get()
 
-    def to_form(self, message):
+    @classmethod
+    def games_stats(self, games):
+        games_played = 0
+        cumulative_score = 0
+        cumulative_number_of_turns = 0
+        for game in games:
+            games_played += 1
+            cumulative_score += game.final_score
+            cumulative_number_of_turns += game.most_recent_turn().turn
+
+        average_score = round(Decimal(
+            float(cumulative_score) / games_played), 3)
+        average_number_of_turns = round(Decimal(\
+            float(cumulative_number_of_turns) / games_played), 3)
+
+        return (games_played, cumulative_score, cumulative_number_of_turns,
+               average_score, average_number_of_turns)
+
+
+    def to_game_result_form(self, message):
         """Returns a GameResultForm representation of the Game"""
         form = GameResultForm()
         form.urlsafe_key = self.key.urlsafe()
@@ -55,12 +75,29 @@ class Game(ndb.Model):
         form.message = message
         return form
 
+    def to_game_status_result_form(self):
+        form = GameStatusResultForm()
+        form.urlsafe_key = self.key.urlsafe()
+        form.number_of_tiles = self.number_of_tiles
+        form.dice_operation = self.dice_operation
+        form.game_over = self.game_over
+
+        recent_turn = self.most_recent_turn()
+        if not recent_turn:
+            form.turns_played = 0
+            return form
+
+        form.turns_played = recent_turn.turn
+        form.score = sum(recent_turn.active_tiles)
+        return form
+
 
 class Turn(ndb.Model):
     """Turn-- Specifies a turn of Shut The Box"""
     turn = ndb.IntegerProperty(required=True)
     roll = ndb.IntegerProperty(repeated=True)
     active_tiles = ndb.IntegerProperty(repeated=True)
+    turn_over = ndb.BooleanProperty(required=True, default=False)
     game_over = ndb.BooleanProperty(required=True, default=False)
     timestamp = ndb.DateTimeProperty(auto_now_add=True)
 
@@ -128,7 +165,6 @@ class Turn(ndb.Model):
         return turn
 
     def new_roll(self, game):
-        logging.warning(self.turn)
         new_roll = Turn(
             key=self.create_turn_key(game.key),
             turn=self.turn + 1,
@@ -154,6 +190,7 @@ class Turn(ndb.Model):
 
     def end_game(self, game):
         self.game_over = True
+        self.turn_over = True
         self.put()
 
         game.game_over = True
@@ -164,6 +201,7 @@ class Turn(ndb.Model):
     def flip(self, flip_tiles):
         for tile in flip_tiles:
             self.active_tiles.remove(tile)
+        self.turn_over = True
         self.put()
         return self.active_tiles
 
@@ -179,12 +217,38 @@ class Turn(ndb.Model):
         form.message = message
         return form
 
+    def to_turn_status_form(self):
+        form = TurnStatusForm()
+        form.turn = self.turn
+        form.roll = self.roll
+        form.active_tiles = self.active_tiles
+        form.turn_over = self.turn_over
+        return form
 
-class UserRequestForm(messages.Message):
-    """User Request Form"""
+class CreateUserRequestForm(messages.Message):
+    """Create User Request Form"""
     user_name = messages.StringField(1, required=True)
     email = messages.StringField(2, required=True)
 
+class UserRequestForm(messages.Message):
+    user_name = messages.StringField(1, required=True)
+    number_of_tiles = messages.EnumField('NumberOfTiles', 2)
+    dice_operation = messages.EnumField('DiceOperation', 3)
+
+
+class AllGamesForm(messages.Message):
+    user_name = messages.StringField(1)
+    only_open_games = messages.BooleanField(2, default=False)
+    only_completed_games = messages.BooleanField(3, default=False)
+
+
+class UserStatsResultForm(messages.Message):
+    games_played = messages.IntegerField(1)
+    cumulative_score = messages.IntegerField(2)
+    cumulative_number_of_turns = messages.IntegerField(3)
+    average_score = messages.FloatField(4)
+    average_number_of_turns = messages.FloatField(5)
+    message = messages.StringField(6)
 
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
@@ -204,7 +268,7 @@ class GameResultForm(messages.Message):
     number_of_tiles = messages.IntegerField(2, required=True)
     dice_operation = messages.StringField(3, required=True)
     game_over = messages.BooleanField(4, required=True)
-    message = messages.StringField(5, required=True)
+    message = messages.StringField(5)
 
 
 class TurnRequestForm(messages.Message):
@@ -221,6 +285,49 @@ class TurnResultForm(messages.Message):
     game_over = messages.BooleanField(6, required=True)
     message = messages.StringField(7, required=True)
 
+
+class GameStatusResultForm(messages.Message):
+    urlsafe_key = messages.StringField(1, required=True)
+    number_of_tiles = messages.IntegerField(2)
+    dice_operation = messages.StringField(3)
+    turns_played = messages.IntegerField(4)
+    score = messages.IntegerField(5)
+    game_over = messages.BooleanField(6)
+
+
+class GamesStatusResultForm(messages.Message):
+    items = messages.MessageField(GameStatusResultForm, 1, repeated=True)
+
+class PlayByPlayRequestForm(messages.Message):
+    urlsafe_key = messages.StringField(1, required=True)
+
+
+class TurnStatusForm(messages.Message):
+    turn = messages.IntegerField(1, required=True)
+    roll = messages.IntegerField(2, repeated=True)
+    active_tiles = messages.IntegerField(3, repeated=True)
+    turn_over = messages.BooleanField(4, required=True)
+
+
+class TurnsStatusForm(messages.Message):
+    items = messages.MessageField(TurnStatusForm, 1, repeated=True)
+
+
+class LeaderboardRequestForm(messages.Message):
+    number_of_tiles = messages.EnumField('NumberOfTiles', 1)
+    dice_operation = messages.EnumField('DiceOperation', 2)
+    use_cumulative_score = messages.BooleanField(3, default=False)
+
+
+class LeaderboardResultForm(messages.Message):
+    user_name = messages.StringField(1, required=True)
+    score = messages.FloatField(2)
+    games_played = messages.IntegerField(3)
+
+
+class LeaderboardsResultForm(messages.Message):
+    items = messages.MessageField(LeaderboardResultForm, 1, repeated=True)
+    message = messages.StringField(2)
 
 class NumberOfTiles(messages.Enum):
     """Tiles -- tiles enumeration value"""

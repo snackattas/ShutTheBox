@@ -15,6 +15,8 @@
 
 -is the way that I split the utility function in utils and have the class functions in models okay?
 
+-Google App Engine GET vs POST.  It seems if I change the http_method in the @endpoints.method to GET, the API isn't allowed to receive any parameters.  So does that mean that for methods that are simply querying the datastore for information, andnot actually storing/posting any data, they still need to be POSTS?
+
 TODO
 -Add a function to get the average score and the average # of turns it takes for a player to finish a game
 -Add a function to get the amount of games a player has open
