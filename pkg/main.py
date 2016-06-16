@@ -41,7 +41,7 @@ class ShutTheBoxApi(remote.Service):
                 format(request.user_name))
         if not User.is_email_valid(request.email):
             return StringMessage(
-                message="Email address invalid! User is not created.")
+                message="Email address invalid according to MailGun! User is not created.")
 
         user = User(
             user_name = request.user_name,
@@ -243,10 +243,11 @@ class ShutTheBoxApi(remote.Service):
                       name='leaderboard',
                       http_method='POST')
     def leaderboard(self, request):
-        users = User.query()
-        users = iter(users)
+        users = User.query().fetch()
         if not users:
-            return LeaderboardsResultForm("No users created yet!")
+            return LeaderboardsResultForm(message="No users created yet!")
+        logging.warning(users)
+        users = iter(users)
         leaderboard = []
         UserStats = namedtuple('UserStats',
             ['score', 'games_played', 'user_name'])
@@ -278,13 +279,16 @@ class ShutTheBoxApi(remote.Service):
                     average_score, games_played, user.user_name)
             leaderboard.append(user_stats)
 
+        if not leaderboard:
+            return LeaderboardsResultForm(message="No games played yet!")
         # Now to sort the results
         logging.warning(leaderboard)
         leaderboard.sort(key=attrgetter('score'))
         logging.warning(leaderboard)
+
         forms  = []
         for user in leaderboard:
-            leaderboard_form = LeaderboardResultForm(;
+            leaderboard_form = LeaderboardResultForm(
                 user_name=user.user_name,
                 games_played=user.games_played,
                 score=user.score)

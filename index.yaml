@@ -16,6 +16,19 @@ indexes:
   - name: timestamp
     direction: desc
 
+- kind: Game
+  ancestor: yes
+  properties:
+  - name: game_over
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  ancestor: yes
+  properties:
+  - name: timestamp
+    direction: desc
+
 - kind: Turn
   ancestor: yes
   properties:
