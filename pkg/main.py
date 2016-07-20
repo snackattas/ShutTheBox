@@ -23,31 +23,63 @@ LEADERBOARD_REQUEST = endpoints.ResourceContainer(LeaderboardRequestForm)
 
 @endpoints.api(name='shut_the_box', version='v1')
 class ShutTheBoxApi(remote.Service):
-    """Game API"""
+    """A set of methods implementing the gameplay of the classic British pub
+    game Shut The Box.  The entire game is implemented on the server-side
+    through Google's Cloud Endpoints.  The state of a game is remembered by
+    passing an individual game's entity key to the client, serving as a state
+    token.
+    """
     @endpoints.method(request_message=CREATE_USER_REQUEST,
                       response_message=StringMessage,
                       path='user',
                       name='create_user',
                       http_method='POST')
     def create_user(self, request):
-        """Create a User. Requires a unique email and username"""
-        if User.query(User.email == request.email).get():
+        """Creates a User.
+
+        :param requests.user_name (req): A unique username.
+        :type requests.user_name: string
+        :param requests.email (opt): A unique and valid email.
+        :type requests.email: string
+
+        :returns: A message confirming user was created.
+        :raises: ConflictException"""
+
+        # Some format checking
+        if not request.user_name:
             raise endpoints.ConflictException(
-                'A user with the email {} already exists!'.\
-                format(request.email))
+                    'User name cannot be null')
+        if len(request.user_name) != len(request.user_name.lstrip(' ')):
+            raise endpoints.ConflictException(
+                    'User name can not have leading spaces')
+        if request.user_name.isspace():
+            raise endpoints.ConflictException(
+                    'User name cannot be null')
+        # Checking for duplicate entries
         if User.query(User.user_name == request.user_name).get():
             raise endpoints.ConflictException(
-                'A user with the name {} already exists!'.\
+                'A user with the name {} already exists!'.
                 format(request.user_name))
-        if not User.is_email_valid(request.email):
-            return StringMessage(
-                message="Email address invalid according to MailGun! User is not created.")
-
-        user = User(
-            user_name = request.user_name,
-            email = request.email)
-        user.put()
-        return StringMessage(message='User {} created!'.\
+        # Only check if email is valid if there is an email to check
+        if request.email:
+            if User.query(User.email == request.email).get():
+                raise endpoints.ConflictException(
+                        'A user with the email {} already exists!'.
+                        format(request.email))
+            # Checking if the email is valid via MAILGUN APIs
+            if not User.is_email_valid(request.email):
+                return StringMessage(
+                    message="Email address invalid! User is not created.")
+            # All is good, saving User object
+            user = User(
+                user_name = request.user_name,
+                email = request.email)
+            user.put()
+        else:
+            user = User(
+                user_name = request.user_name)
+            user.put()
+        return StringMessage(message='User {} created!'.
                              format(request.user_name))
 
 
@@ -57,18 +89,31 @@ class ShutTheBoxApi(remote.Service):
                       name='new_game',
                       http_method='POST')
     def new_game(self, request):
-        """Creates new game.  Default number of tiles is 9"""
+        """Creates new game.
+
+        :param request.user_name (req): A unique username.
+        :type request.user_name: string
+        :param request.number_of_tiles (req): NINE, TWELVE
+        :type request.number_of_tiles: enum
+        :param request.dice_operation (req): ADDITION, MULTIPLICATION
+        :type request.dice_operation: enum
+
+        :returns: The username, number of tiles, dice operation, urlsafe key,
+        and message.
+        :raises: NotFoundException, ConflictException"""
+
         user = User.query(User.user_name == request.user_name).get()
         if not user:
             raise endpoints.NotFoundException(
                     'A user with the name {} does not exist!'.\
                     format(request.user_name))
+        if not request.number_of_tiles or not request.dice_operation:
+            raise endpoints.ConflictException(
+                'User must specify the number of tiles and the dice operation')
         game = Game.new_game(user.key, request.number_of_tiles.number,
                             request.dice_operation.name)
-
-        # Add taskqueue here
-        return game.to_game_result_form("Good luck playing Shut The Box, {}!".\
-                           format(user.user_name))
+        return game.to_game_result_form("Good luck playing Shut The Box, {}!".
+                                        format(user.user_name))
 
 
     @endpoints.method(request_message=TURN_REQUEST,
@@ -77,13 +122,16 @@ class ShutTheBoxApi(remote.Service):
                       name='turn',
                       http_method='POST')
     def turn(self, request):
+        # First make sure the game's key is real/not game over status
         game = get_by_urlsafe(request.urlsafe_key, Game)
         if game.game_over:
-            recent_turn = game.most_recent_turn()
-            return recent_turn.to_form(
-                game_urlsafe_key=game.key.urlsafe(),
-                valid_move=False,
-                message="This game is already over.  Play again by calling " + "new_game()!")
+            form = TurnResultForm()
+            form.urlsafe_key = request.urlsafe_key
+            form.valid_move = False
+            form.game_over = True
+            form.message = "This game is already over.  Play again by calling "\
+                           "new_game()!"
+            return form
 
         recent_turn = game.most_recent_turn()
         if not recent_turn:
@@ -93,13 +141,15 @@ class ShutTheBoxApi(remote.Service):
                 game_urlsafe_key=game.key.urlsafe(),
                 valid_move=True,
                 message="Call turn() again to play your roll")
-
+        # If it's not a user's first turn as checked above, user must play
+        # flip_tiles
         if not request.flip_tiles:
             return recent_turn.to_form(
                 game_urlsafe_key=game.key.urlsafe(),
                 valid_move=False,
                 message="User must pass in values to flip_tiles!")
-
+        # Use the most recent turns roll and active tiles with
+        # request.flip_tiles to calculate if it's a valid flip
         error = recent_turn.invalid_flip(request.flip_tiles,
                                          game.dice_operation)
         if error:
@@ -108,24 +158,51 @@ class ShutTheBoxApi(remote.Service):
                 valid_move=False,
                 message=error)
 
-        new_tiles = recent_turn.flip(request.flip_tiles)
-        if not new_tiles:
-            recent_turn.end_game(game)
-            return recent_turn.to_form(
+
+        new_turn = recent_turn.new_turn(game, request.flip_tiles)
+        if not new_turn.active_tiles:
+            new_turn.end_game(game)
+            return new_turn.to_form(
                 game_urlsafe_key=game.key.urlsafe(),
                 valid_move=True,
                 message="Game over! Perfect score! Call new_game() to play again!")
-
-        new_roll = recent_turn.new_roll(game)
-        game_over = new_roll.is_game_over(game)
+        game_over = new_turn.is_game_over(game)
         if game_over:
-            new_roll.end_game(game)
-            return new_roll.to_form(
+            new_turn.end_game(game)
+            return new_turn.to_form(
                 game_urlsafe_key=game.key.urlsafe(),
                 valid_move=True,
                 message="Game over! Call new_game() to play again!")
 
-        return new_roll.to_form(
+        return new_turn.to_form(
+            game_urlsafe_key=game.key.urlsafe(),
+            valid_move=True,
+            message="Call turn() again to play your roll")
+
+
+    @endpoints.method(request_message=TURN_REQUEST,
+                      response_message=TurnResultForm,
+                      path='turnfix',
+                      name='turnfix',
+                      http_method='POST')
+    def turnfix(self, request):
+        game = get_by_urlsafe(request.urlsafe_key, Game)
+        turn = Turn()
+        first_turn = Turn(
+            key=turn.create_turn_key(game.key),
+            turn=0,
+            roll=[9],
+            active_tiles=range(1, 10))
+        first_turn.put()
+        for n in list(reversed(range(2,10))):
+            recent_turn = game.most_recent_turn()
+            new_turn = Turn(
+                key=recent_turn.create_turn_key(game.key),
+                turn=recent_turn.turn + 1,
+                roll=[n-1],
+                active_tiles=recent_turn.flip([n]))
+            new_turn.put()
+        return new_turn.to_form(
             game_urlsafe_key=game.key.urlsafe(),
             valid_move=True,
             message="Call turn() again to play your roll")

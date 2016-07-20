@@ -44,6 +44,8 @@ class Game(ndb.Model):
         return game
 
     def most_recent_turn(self):
+        """Returns the most recent Turn entity that is a child of the parent Game
+        entity, or null if no Turn entity Sexists"""
         return Turn.query(ancestor=self.key).order(-Turn.timestamp).get()
 
     @classmethod
@@ -101,6 +103,55 @@ class Turn(ndb.Model):
     game_over = ndb.BooleanProperty(required=True, default=False)
     timestamp = ndb.DateTimeProperty(auto_now_add=True)
 
+    # Methods for creating turn entities
+    @classmethod
+    def first_roll(cls, game):
+        turn = Turn(
+            key=cls.create_turn_key(game.key),
+            turn=0,
+            active_tiles=range(1, game.number_of_tiles+1))
+        turn.roll = turn.roll_dice()
+        turn.put()
+        return turn
+
+
+    def new_turn(self, game, flip_tiles):
+        # First end prior turn
+        self.turn_over = True
+        self.put()
+
+        # Must change the active tiles before calling roll just in case the
+        # active tiles change to only being 1-6
+        new_turn = Turn(
+            key=self.create_turn_key(game.key),
+            turn=self.turn + 1,
+            active_tiles=self.flip(flip_tiles))
+        # Only roll the dice if there are still tiles to flip
+        if new_turn.active_tiles:
+            new_turn.roll = self.roll_dice()
+        new_turn.put()
+        return new_turn
+
+
+    def flip(self, flip_tiles):
+        for tile in flip_tiles:
+            self.active_tiles.remove(tile)
+        return self.active_tiles
+
+    # Utilities for creating turn entities
+    @classmethod
+    def create_turn_key(cls, game_key):
+        turn_id = Turn.allocate_ids(size=1, parent=game_key)[0]
+        return ndb.Key(Turn, turn_id, parent=game_key)
+
+
+    def roll_dice(self):
+        # Check if tiles 7 or up are present, return two dice if so
+        if filter(lambda n: n>=7, self.active_tiles):
+            return [randint(1, 6), randint(1, 6)]
+        return [randint(1, 6)]
+
+
     def valid_roll_combos(self, active_tiles, dice_max):
         rolls=[]
         active_tiles_count = len(active_tiles)
@@ -115,7 +166,17 @@ class Turn(ndb.Model):
 
 
     def invalid_flip(self, flip_tiles, dice_operation):
-        # First check that only singular tiles were played
+        """Checks a user's flipped tiles against their active tiles to
+        determine if the user's flip is valid or not.
+
+        :param flip_tiles (req): The tiles flipped by the end user.
+        :type flip_tiles: list of int
+        :param dice_operation (req): ADDITION or MULTIPLICATION.
+        :type dice_operation: string
+        :return: Returns an error message if the flip was invalid.  Returns
+        False if the the flip is valid.
+        """
+        # First check that only one of each tile was played, no repeats
         count_unique = Counter(flip_tiles).values()
         if sum(count_unique) / float(len(count_unique)) != 1:
             return "The same tile was played twice!"
@@ -144,34 +205,6 @@ class Turn(ndb.Model):
         return reduce(lambda x, y: x*y, tiles)
 
 
-    def roll_dice(self):
-        if filter(lambda n: n>=6, self.active_tiles):
-            return [randint(1, 6), randint(1, 6)]
-        return [randint(1, 6)]
-
-    @classmethod
-    def create_turn_key(cls, game_key):
-        turn_id = Turn.allocate_ids(size=1, parent=game_key)[0]
-        return ndb.Key(Turn, turn_id, parent=game_key)
-
-    @classmethod
-    def first_roll(cls, game):
-        turn = Turn(
-            key=cls.create_turn_key(game.key),
-            turn=1,
-            active_tiles=range(1, game.number_of_tiles+1))
-        turn.roll = turn.roll_dice()
-        turn.put()
-        return turn
-
-    def new_roll(self, game):
-        new_roll = Turn(
-            key=self.create_turn_key(game.key),
-            turn=self.turn + 1,
-            roll=self.roll_dice(),
-            active_tiles=self.active_tiles)
-        new_roll.put()
-        return new_roll
 
 
     def is_game_over(self, game):
@@ -198,12 +231,14 @@ class Turn(ndb.Model):
         game.put()
 
 
-    def flip(self, flip_tiles):
-        for tile in flip_tiles:
-            self.active_tiles.remove(tile)
-        self.turn_over = True
-        self.put()
-        return self.active_tiles
+    # class TurnResultForm(messages.Message):
+    #     urlsafe_key = messages.StringField(1, required=True)
+    #     roll = messages.IntegerField(2, repeated=True)
+    #     active_tiles = messages.IntegerField(3, repeated=True)
+    #     valid_move = messages.BooleanField(4, required=True)
+    #     score = messages.IntegerField(5)
+    #     game_over = messages.BooleanField(6, required=True)
+    #     message = messages.StringField(7, required=True)
 
 
     def to_form(self, game_urlsafe_key, valid_move, message):
@@ -217,6 +252,7 @@ class Turn(ndb.Model):
         form.message = message
         return form
 
+
     def to_turn_status_form(self):
         form = TurnStatusForm()
         form.turn = self.turn
@@ -228,7 +264,7 @@ class Turn(ndb.Model):
 class CreateUserRequestForm(messages.Message):
     """Create User Request Form"""
     user_name = messages.StringField(1, required=True)
-    email = messages.StringField(2, required=True)
+    email = messages.StringField(2)
 
 class UserRequestForm(messages.Message):
     user_name = messages.StringField(1, required=True)
