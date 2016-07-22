@@ -11,7 +11,7 @@ from decimal import Decimal
 
 class User(ndb.Model):
     """User profile"""
-    user_name = ndb.StringProperty(required=True)
+    username = ndb.StringProperty(required=True)
     email =ndb.StringProperty()
 
     @classmethod
@@ -57,11 +57,12 @@ class Game(ndb.Model):
             games_played += 1
             cumulative_score += game.final_score
             cumulative_number_of_turns += game.most_recent_turn().turn
-
+        
+        decimal_places = 3
         average_score = round(Decimal(
-            float(cumulative_score) / games_played), 3)
-        average_number_of_turns = round(Decimal(\
-            float(cumulative_number_of_turns) / games_played), 3)
+            float(cumulative_score) / games_played), decimal_places)
+        average_number_of_turns = round(Decimal(
+            float(cumulative_number_of_turns) / games_played), decimal_places)
 
         return (games_played, cumulative_score, cumulative_number_of_turns,
                average_score, average_number_of_turns)
@@ -85,12 +86,16 @@ class Game(ndb.Model):
         form.game_over = self.game_over
 
         recent_turn = self.most_recent_turn()
+        # If no turn is logged in the game yet, hardcode a 0
         if not recent_turn:
             form.turns_played = 0
             return form
 
         form.turns_played = recent_turn.turn
         form.score = sum(recent_turn.active_tiles)
+        # Pretty much a raw timestamp.
+        # TODO: evaluate whether this should be human-readable or not
+        form.timestamp = recent_turn.timestamp
         return form
 
 
@@ -115,11 +120,12 @@ class Turn(ndb.Model):
         return turn
 
 
-    def new_turn(self, game, flip_tiles):
-        # First end prior turn
+    def end_turn(self):
         self.turn_over = True
         self.put()
+        return
 
+    def new_turn(self, game, flip_tiles):
         # Must change the active tiles before calling roll just in case the
         # active tiles change to only being 1-6
         new_turn = Turn(
@@ -241,9 +247,9 @@ class Turn(ndb.Model):
     #     message = messages.StringField(7, required=True)
 
 
-    def to_form(self, game_urlsafe_key, valid_move, message):
+    def to_form(self, urlsafe_key, valid_move, message):
         form = TurnResultForm()
-        form.urlsafe_key = game_urlsafe_key
+        form.urlsafe_key = urlsafe_key
         form.roll = self.roll
         form.active_tiles = self.active_tiles
         form.score = sum(self.active_tiles)
@@ -263,19 +269,19 @@ class Turn(ndb.Model):
 
 class CreateUserRequestForm(messages.Message):
     """Create User Request Form"""
-    user_name = messages.StringField(1, required=True)
+    username = messages.StringField(1, required=True)
     email = messages.StringField(2)
 
 class UserRequestForm(messages.Message):
-    user_name = messages.StringField(1, required=True)
+    username = messages.StringField(1, required=True)
     number_of_tiles = messages.EnumField('NumberOfTiles', 2)
     dice_operation = messages.EnumField('DiceOperation', 3)
 
 
 class AllGamesForm(messages.Message):
-    user_name = messages.StringField(1)
-    only_open_games = messages.BooleanField(2, default=False)
-    only_completed_games = messages.BooleanField(3, default=False)
+    username = messages.StringField(1)
+    active_games = messages.BooleanField(2, default=False)
+    finished_games = messages.BooleanField(3, default=False)
 
 
 class UserStatsResultForm(messages.Message):
@@ -293,7 +299,7 @@ class StringMessage(messages.Message):
 
 class NewGameRequestForm(messages.Message):
     """NewGameForm-- Inbound form used to create a new game"""
-    user_name = messages.StringField(1, required=True)
+    username = messages.StringField(1, required=True)
     number_of_tiles = messages.EnumField('NumberOfTiles', 2)
     dice_operation = messages.EnumField('DiceOperation', 3)
 
@@ -308,8 +314,7 @@ class GameResultForm(messages.Message):
 
 
 class TurnRequestForm(messages.Message):
-    urlsafe_key = messages.StringField(1, required=True)
-    flip_tiles = messages.IntegerField(2, repeated=True)
+    flip_tiles = messages.IntegerField(1, repeated=True)
 
 
 class TurnResultForm(messages.Message):
@@ -329,14 +334,19 @@ class GameStatusResultForm(messages.Message):
     turns_played = messages.IntegerField(4)
     score = messages.IntegerField(5)
     game_over = messages.BooleanField(6)
+    timestamp = message_types.DateTimeField(7)
 
 
 class GamesStatusResultForm(messages.Message):
     items = messages.MessageField(GameStatusResultForm, 1, repeated=True)
 
-class PlayByPlayRequestForm(messages.Message):
+
+class URLSafeKeyRequestForm(messages.Message):
     urlsafe_key = messages.StringField(1, required=True)
 
+class CancelResultForm(messages.Message):
+    cancelled = messages.BooleanField(1, required=True)
+    error = messages.StringField(2)
 
 class TurnStatusForm(messages.Message):
     turn = messages.IntegerField(1, required=True)
@@ -356,7 +366,7 @@ class LeaderboardRequestForm(messages.Message):
 
 
 class LeaderboardResultForm(messages.Message):
-    user_name = messages.StringField(1, required=True)
+    username = messages.StringField(1, required=True)
     score = messages.FloatField(2)
     games_played = messages.IntegerField(3)
 
@@ -364,6 +374,7 @@ class LeaderboardResultForm(messages.Message):
 class LeaderboardsResultForm(messages.Message):
     items = messages.MessageField(LeaderboardResultForm, 1, repeated=True)
     message = messages.StringField(2)
+
 
 class NumberOfTiles(messages.Enum):
     """Tiles -- tiles enumeration value"""

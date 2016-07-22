@@ -1,5 +1,5 @@
 import endpoints
-from protorpc import remote, messages
+from protorpc import remote, messages, message_types
 from google.appengine.ext import ndb
 
 # from pkg.models import User, Game, Turn
