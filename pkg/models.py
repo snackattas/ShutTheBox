@@ -50,22 +50,22 @@ class Game(ndb.Model):
 
     @classmethod
     def games_stats(self, games):
-        games_played = 0
-        cumulative_score = 0
-        cumulative_number_of_turns = 0
+        games_completed = 0
+        total_score = 0
+        total_turns = 0
         for game in games:
-            games_played += 1
-            cumulative_score += game.final_score
-            cumulative_number_of_turns += game.most_recent_turn().turn
-        
+            games_completed += 1
+            total_score += game.final_score
+            total_turns += game.most_recent_turn().turn
+
         decimal_places = 3
         average_score = round(Decimal(
-            float(cumulative_score) / games_played), decimal_places)
-        average_number_of_turns = round(Decimal(
-            float(cumulative_number_of_turns) / games_played), decimal_places)
+            float(total_score) / games_completed), decimal_places)
+        average_turns = round(Decimal(
+            float(total_turns) / games_completed), decimal_places)
 
-        return (games_played, cumulative_score, cumulative_number_of_turns,
-               average_score, average_number_of_turns)
+        return (games_completed, total_score, total_turns,
+               average_score, average_turns)
 
 
     def to_game_result_form(self, message):
@@ -263,8 +263,17 @@ class Turn(ndb.Model):
         form = TurnStatusForm()
         form.turn = self.turn
         form.roll = self.roll
-        form.active_tiles = self.active_tiles
-        form.turn_over = self.turn_over
+        # The data in active_tiles passed in here is manipulated by the method
+        # main.play_by_play, so that it stores [0] score and [1] tiles_played
+        form.score = self.active_tiles[0]
+        form.tiles_played = self.active_tiles[1]
+        # Report in the last turn if the game is over or not
+        if self.game_over == True:
+            form.game_over = True
+        # If a game is still in session, the last turn_over should be false.
+        # Easier to use this as a metric than game_over.
+        if self.turn_over == False:
+            form.game_over = False
         return form
 
 class CreateUserRequestForm(messages.Message):
@@ -280,16 +289,16 @@ class UserRequestForm(messages.Message):
 
 class AllGamesForm(messages.Message):
     username = messages.StringField(1)
-    active_games = messages.BooleanField(2, default=False)
+    games_in_progress = messages.BooleanField(2, default=False)
     finished_games = messages.BooleanField(3, default=False)
 
 
 class UserStatsResultForm(messages.Message):
-    games_played = messages.IntegerField(1)
-    cumulative_score = messages.IntegerField(2)
-    cumulative_number_of_turns = messages.IntegerField(3)
+    games_completed = messages.IntegerField(1)
+    total_score = messages.IntegerField(2)
+    total_turns = messages.IntegerField(3)
     average_score = messages.FloatField(4)
-    average_number_of_turns = messages.FloatField(5)
+    average_turns = messages.FloatField(5)
     message = messages.StringField(6)
 
 class StringMessage(messages.Message):
@@ -338,7 +347,7 @@ class GameStatusResultForm(messages.Message):
 
 
 class GamesStatusResultForm(messages.Message):
-    items = messages.MessageField(GameStatusResultForm, 1, repeated=True)
+    games = messages.MessageField(GameStatusResultForm, 1, repeated=True)
 
 
 class URLSafeKeyRequestForm(messages.Message):
@@ -351,28 +360,33 @@ class CancelResultForm(messages.Message):
 class TurnStatusForm(messages.Message):
     turn = messages.IntegerField(1, required=True)
     roll = messages.IntegerField(2, repeated=True)
-    active_tiles = messages.IntegerField(3, repeated=True)
-    turn_over = messages.BooleanField(4, required=True)
+    tiles_played = messages.IntegerField(3, repeated=True)
+    score = messages.IntegerField(4, required=True)
+    game_over = messages.BooleanField(5)
 
 
 class TurnsStatusForm(messages.Message):
-    items = messages.MessageField(TurnStatusForm, 1, repeated=True)
+    turns = messages.MessageField(TurnStatusForm, 1, repeated=True)
 
 
 class LeaderboardRequestForm(messages.Message):
     number_of_tiles = messages.EnumField('NumberOfTiles', 1)
     dice_operation = messages.EnumField('DiceOperation', 2)
-    use_cumulative_score = messages.BooleanField(3, default=False)
 
 
 class LeaderboardResultForm(messages.Message):
     username = messages.StringField(1, required=True)
-    score = messages.FloatField(2)
-    games_played = messages.IntegerField(3)
+    average_score = messages.FloatField(2)
+    average_turns = messages.FloatField(3)
+    total_score = messages.IntegerField(4)
+    games_completed = messages.IntegerField(5)
+    rank = messages.IntegerField(6)
+
 
 
 class LeaderboardsResultForm(messages.Message):
-    items = messages.MessageField(LeaderboardResultForm, 1, repeated=True)
+    ranked_users = messages.MessageField(LeaderboardResultForm, 1,
+        repeated=True)
     message = messages.StringField(2)
 
 

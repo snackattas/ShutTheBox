@@ -38,12 +38,14 @@ class ShutTheBoxApi(remote.Service):
     def create_user(self, request):
         """Creates a User.
 
-        :param requests.username (req): A unique username.
-        :type requests.username: string
-        :param requests.email (opt): A unique and valid email.
-        :type requests.email: string
+        :param username (req): A unique username without leading spaces.
+        :type username: string
+        :param email (opt): A unique and valid email.  Email is validated using MAILGUN email validation API.
+        :type email: string
 
-        :returns: A message confirming user was created.
+        :returns message (req): A message confirming user was created, or an error message.
+        :rtype message: string
+
         :raises: ConflictException"""
 
         # Some format checking
@@ -90,19 +92,31 @@ class ShutTheBoxApi(remote.Service):
                       name='new_game',
                       http_method='POST')
     def new_game(self, request):
-        """Creates new game.
+        """Creates a new game.
 
-        :param request.username (req): A unique username.
-        :type request.username: string
-        :param request.number_of_tiles (req): Number of active tiles to play
+        :param username (req): A unique username.
+        :type username: string
+        :param number_of_tiles (req): Number of tiles to play
         Shut The Box with.
-        :type request.number_of_tiles: enum-{NINE, TWELVE}
-        :param request.dice_operation (req): When two dice are rolled in a
+        :type number_of_tiles: enum-{NINE, TWELVE}
+        :param dice_operation (req): When two dice are rolled in a
         turn, this determines if the number to aim for with the flipped tiles is the sum of the dice roll or the product.
-        :type request.dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :type dice_operation: enum-{ADDITION, MULTIPLICATION}
 
-        :returns: The username, number_of_tiles, dice_operation, urlsafe_key,
-        and message.
+        :returns username (req): A unique username.
+        :rtype username: string
+        :returns number_of_tiles (req): Number of tiles to play Shut The Box with.
+        :rtype number_of_tiles: enum-{NINE, TWELVE}
+        :returns dice_operation (req): When two dice are rolled in a
+        turn, this determines if the number to aim for with the flipped tiles is the sum of the dice roll or the product.
+        :rtype dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :returns urlsafe_key (req): This is the urlsafe_key returned
+        from calling new_game().  It serves as the state token for a single
+        game of Shut The Box.
+        :rtype urlsafe-key: string
+        :returns message (req): A helpful message or an error message.
+        :rtype message: string
+
         :raises: NotFoundException, ConflictException"""
 
         user = User.query(User.username == request.username).get()
@@ -127,20 +141,18 @@ class ShutTheBoxApi(remote.Service):
     def turn(self, request):
         """Plays one turn of Shut The Box.
 
-        First call turn() with only a urlsafe_key and flip_tiles=null.  It
-        returns a roll and a full set of tiles.
-        Each subsequent call of turn() should include a urlsafe_key and
-        flip_tiles, and turn() will determine the validity of the tiles being
-        flipped and compute the next roll.
+        To play Shut The Box, first call turn() with only a urlsafe_key and flip_tiles null.  It returns a roll and a full set of tiles.
+        Each subsequent call of turn() must include both a urlsafe_key and
+        flip_tiles, and turn() will determine the validity of flip_tiles and compute the next roll.  The goal is to flip all the tiles and get the lowest score possible.
 
-        :param request.urlsafe_key (req): This is the urlsafe_key returned
+        :param urlsafe_key (req): This is the urlsafe_key returned
         from calling new_game().  It serves as the state token for a single
         game of Shut The Box.
-        :type request.urlsafe_key: string
-        :param request.flip_tiles (opt): Leave this parameter null for
+        :type urlsafe_key: string
+        :param flip_tiles (opt): Leave this parameter null for
         the first call of turn().  On subsequent calls, flip_tiles are the
         integers to be flipped in response to the roll.
-        :type request.flip_tiles: list of non-negative integers
+        :type flip_tiles: list of non-negative integers
 
         :returns urlsafe_key (req): The same urlsafe_key passed in.
         :rtype urlsafe_key: string
@@ -224,29 +236,30 @@ class ShutTheBoxApi(remote.Service):
             valid_move=True,
             message="Call turn() again to play your roll")
 
-    # My view is it's better to just allow people to cancel games outright
-    # than to leave them unplayed if they think the score will fare poorly
-    # for their average score
+
+    # cancel_game just deletes the game/turns.  My view is it's better to just
+    # allow people to cancel games outright than to mark them somehow in the
+    # database
     @endpoints.method(request_message=URLSAFE_KEY_REQUEST,
                       response_message=CancelResultForm,
                       path='cancel_game/{urlsafe_key}',
                       name='cancel_game',
                       http_method='DELETE')
     def cancel_game(self, request):
-        """Cancels a Game entity and its children Turn entities.
-        
-        :param request.urlsafe_key (req): This is the urlsafe_key returned
+        """Cancels a Game entity and its children Turn entities.  User can only cancel games in progress.
+
+        :param urlsafe_key (req): This is the urlsafe_key returned
         from calling new_game().  It serves as the state token for a single
         game of Shut The Box.
-        :type request.urlsafe_key: string
-        
+        :type urlsafe_key: string
+
         :returns cancelled (req): True if the game entity and Turn entities are
         deleted from the datastore; False if the game entity in question is
         already completed.
         :rtype cancelled: boolean
         :returns error (opt): Helpful error message.
         :rtype error: string
-        
+
         :raises: BadRequestException, ValueError"""
 
         game = get_by_urlsafe(request.urlsafe_key, Game)
@@ -273,7 +286,7 @@ class ShutTheBoxApi(remote.Service):
             roll=[9],
             active_tiles=range(1, 10))
         first_turn.put()
-        for n in list(reversed(range(2,10))):
+        for n in list(reversed(range(3,9))):
             recent_turn = game.most_recent_turn()
             new_turn = Turn(
                 key=recent_turn.create_turn_key(game.key),
@@ -300,21 +313,34 @@ class ShutTheBoxApi(remote.Service):
                       path='user_stats',
                       name='user_stats',
                       http_method='POST')
-    def user_stats(self, request):
-        """Returns basic user stats.
-        
-        :param request.username (req): A unique username.
-        :type request.username: string
-        :param request.number_of_tiles (opt): If filled in, filters to
+    def get_user_stats(self, request):
+        """Returns basic user statistics.
+
+        The statistics are completed games, total score, total turns, average score, and average turns.  Able to filter by username, dice operation, and number of dice.
+
+        :param username (req): A unique username.
+        :type username: string
+        :param number_of_tiles (opt): If specified, filters to
         return games with the specified number_of_tiles.
-        :type request.number_of_tiles: enum-{NINE, TWELVE}
-        :param request.dice_operation (opt): If filled in, filters to
+        :type number_of_tiles: enum-{NINE, TWELVE}
+        :param dice_operation (opt): If specified, filters to
         return games with the specified dice_operation.
-        :type request.dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :type dice_operation: enum-{ADDITION, MULTIPLICATION}
 
-        Returns:
+        :returns games_completed (req): Number of games completed
+        :rtype games_completed: integer
+        :returns total_score (req): Total score of completed games
+        :rtype total_score: integer
+        :returns total_turns (req): Total number of turns for all completed games
+        :returns average_score (req): Average score from all completed games
+        :rtype average_score: float
+        :returns average_turns (req): Average turns from all completed games
+        :rtype average_turns: float
+        :returns message (opt): Error message
+        :rtype message: string
 
-        """
+        :raises: NotFoundException"""
+
         user = User.query(User.username == request.username).get()
         if not user:
             raise endpoints.NotFoundException(
@@ -322,12 +348,13 @@ class ShutTheBoxApi(remote.Service):
                     format(request.username))
 
         games_query = Game.query(ancestor=user.key)
+        # Only return games that have a status of game_over
         games_query = games_query.filter(Game.game_over == True)
 
+        # Optional filters
         if request.number_of_tiles:
             games_query = games_query.filter(
                 Game.number_of_tiles == request.number_of_tiles.number)
-
         if request.dice_operation:
             games_query = games_query.filter(
                 Game.dice_operation == request.dice_operation.name)
@@ -336,26 +363,56 @@ class ShutTheBoxApi(remote.Service):
         if not games:
             return UserStatsResultForm(message="No games found!")
 
-        (games_played, cumulative_score, cumulative_number_of_turns,
-            average_score, average_number_of_turns) = Game.games_stats(games)
-
+        (games_completed, total_score, total_turns,
+            average_score, average_turns) = Game.games_stats(games)
 
         form =  UserStatsResultForm(
-            games_played=games_played,
-            cumulative_score=cumulative_score,
-            cumulative_number_of_turns=cumulative_number_of_turns,
+            games_completed=games_completed,
+            total_score=total_score,
+            total_turns=total_turns,
             average_score=average_score,
-            average_number_of_turns=average_number_of_turns,
-            message="Games found!")
+            average_turns=average_turns)
         return form
 
-    # This method, like user_stats, should probably be a GET.  Same gripes.
+
+    # TODO: This method, like user_stats, should probably be a GET.
+    # The rubric calls for a method get_user_games, but I expanded this API to
+    # have that functionality and more
     @endpoints.method(request_message=ALL_GAMES_REQUEST,
                       response_message=GamesStatusResultForm,
-                      path='all_games',
-                      name='all_games',
+                      path='games_report',
+                      name='games_report',
                       http_method='POST')
-    def all_games(self, request):
+    def games_report(self, request):
+        """Returns all games by default.
+
+        Each game is returned with its urlsafe key, the number of tiles and dice operation selected for the game, and whether the game is over or not.  Able to filter by username, number of tiles, and dice operation. User is not able to call all_games with both parameters games_in_progress and finished_games True, as that would be a contradiction.
+
+        :param games_in_progress (opt): If True, returns active games.  If False, returns both active games finished games.
+        :type games_in_progress: boolean
+        :param finished_games (opt): If True, returns only finished games. If False, returns both active games and finished games.
+        :type finished_games: boolean
+        :param username (opt): A unique username.
+        :type username: string
+
+        :returns games (req): A list of games. Each game contains the parameters below.
+        :rtype games: list
+        :returns urlsafe_key (req): The urlsafe_key used to play the game.
+        :rtype urlsafe_key: string
+        :returns number_of_tiles (req): Number of tiles to play
+        Shut The Box with.
+        :rtype number_of_tiles: enum-{NINE, TWELVE}
+        :returns dice_operation (req): When two dice are rolled in a
+        turn, this determines if the number to aim for with the flipped tiles is the sum of the dice roll or the product.
+        :rtype dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :returns game_over (req): If True, game is over.  If False,
+        more turns can be played.
+        :rtype game_over: boolean
+        :returns turns_played (req): Number of turns played.
+        :rtype turns_played: integer
+
+        :raises: NotFoundException, BadRequestException"""
+
         if request.username:
             user = User.query(User.username == request.username).get()
             if not user:
@@ -368,12 +425,12 @@ class ShutTheBoxApi(remote.Service):
         else:
             games_query = Game.query()
 
-        if request.active_games == True \
-            and request.finished_games == True:
-            raise endpoints.BadRequestException("all_games() can't be called with"
-                " the parameters active_games and finished_games both True")
+        if request.games_in_progress == True \
+        and request.finished_games == True:
+            raise endpoints.BadRequestException("all_games() can't be called "
+            "with both parameters games_in_progress and finished_games True")
 
-        if request.active_games:
+        if request.games_in_progress:
             games_query = games_query.filter(Game.game_over == False)
         if request.finished_games:
             games_query = games_query.filter(Game.game_over == True)
@@ -382,100 +439,163 @@ class ShutTheBoxApi(remote.Service):
         games = games_query.fetch()
 
         return GamesStatusResultForm(
-            items=[game.to_game_status_result_form() for game in games])
+            games=[game.to_game_status_result_form() for game in games])
 
 
     @endpoints.method(request_message=URLSAFE_KEY_REQUEST,
                       response_message=TurnsStatusForm,
-                      path='play_by_play',
-                      name='play_by_play',
+                      path='game_history',
+                      name='game_history',
                       http_method='POST')
-    def play_by_play(self, request):
+    def get_game_history(self, request):
+        """Returns the history of moves for the game passed in, allowing a game to be replayed and watched move by move.
+
+        :param urlsafe_key (req): This is the urlsafe_key returned
+        from calling new_game().  It serves as the state token for a single
+        game of Shut The Box.
+        :type urlsafe_key: string
+
+        :returns turns (req): A list of turns for a specific game.  Each turn contains the parameters below.
+        :rtype turns: list
+        :returns turn (req): The turn number.
+        :rtype turn: integer
+        :returns roll (req): A list of the dice roll.
+        :rtype roll: list of non-negative integers
+        :returns tiles_played (req): The tiles flipped that turn.
+        :rtype tiles_played: a list of non-negative integers.
+        :returns score (opt): a running sum of the active_tiles in play
+        :rtype score: non-negative integer
+        :returns game_over (req): If True, game is over.  If False,
+        more turns can be played.
+        :rtype game_over: boolean
+
+        :raises: BadRequestException, ValueError"""
+
         game = get_by_urlsafe(request.urlsafe_key, Game)
         turns = Turn.query(ancestor=game.key).order(Turn.timestamp).fetch()
-        return TurnsStatusForm(
-            items=[turn.to_turn_status_form() for turn in turns])
 
-# class LeaderboardRequestForm(messages.Message):
-#     number_of_tiles = messages.EnumField('NumberOfTiles', 1)
-#     dice_operation = messages.EnumField('DiceOperation', 2)
-#     use_total_score = messages.BooleanField(3, default=True)
-#     use_average_game_score = messages.BooleanField(4, default=False)
-#
-#
-# class LeaderBoardResultForm(messages.Message):
-#     username = messages.StringField(1, required=True)
-#     total_score = messages.IntegerField(2)
-#     average_score = messages.IntegerField(3)
-#     games_played = messages.IntegerField(4)
-#
-#
-# class LeaderBoardsResultForm(messages.Message):
-#     items = messages.MessageField(LeaderBoardResultForm, 1, repeated=True)
-#     filters = messages.StringField(2)
+        for turn in turns:
+            if turn.turn == 0: # Only set last_turn in the first loop
+                last_turn = set(turn.active_tiles)
+            current_turn = set(turn.active_tiles)
+            tiles_played = list(last_turn.difference(current_turn))
+            # Set last_turn now for the next loop / the next comparison
+            last_turn = set(turn.active_tiles)
+            # Now we are going to repurpose turn.active_tiles, a variable
+            # associated with each turn, to store the score and the tiles_played
+            score = sum(turn.active_tiles)
+            turn.active_tiles = []
+            turn.active_tiles.append(score)
+            turn.active_tiles.append(tiles_played)
+        return TurnsStatusForm(
+            turns=[turn.to_turn_status_form() for turn in turns])
+
+
     @endpoints.method(request_message=LEADERBOARD_REQUEST,
                       response_message=LeaderboardsResultForm,
                       path='leaderboard',
                       name='leaderboard',
                       http_method='POST')
     def leaderboard(self, request):
+        """List of ranked players.  Players are ranked by average_score from low to high, and in the case of a tie in average_score, the rank is determined by lowest average_turns.
+
+        Players are only able to be ranked if they have completed 5 or more games.  The leaderboard is able to be filtered by dice_operation or number_of_tiles.
+
+        :param number_of_tiles (opt): If specified, filters to
+        return games with the specified number_of_tiles.
+        :type number_of_tiles: enum-{NINE, TWELVE}
+        :param dice_operation (opt): If specified, filters to
+        return games with the specified dice_operation.
+        :type dice_operation: enum-{ADDITION, MULTIPLICATION}
+
+        :returns username (req): A unique username.
+        :rtype username: string
+        :returns total_turns (req): Total number of turns for all completed games
+        :returns average_score (req): Average score from all completed games
+        :rtype average_score: float
+        :returns average_turns (req): Average turns from all completed games
+        :rtype average_turns: float
+        :returns total_score (req): Total score of completed games
+        :rtype total_score: integer
+        :returns games_completed (req): Number of games completed
+        :rtype games_completed: integer
+        :returns rank (req): Rank of the user.
+        :rtype rank: integer
+        :returns message (opt): Error message
+        :rtype message: string"""
+
         users = User.query().fetch()
         if not users:
             return LeaderboardsResultForm(message="No users created yet!")
-        logging.warning(users)
-        users = iter(users)
+        # Create an empty leaderboard list and populate it with the UserStats
+        # namedtuple
         leaderboard = []
         UserStats = namedtuple('UserStats',
-            ['score', 'games_played', 'username'])
+            ['total_score', 'average_score', 'average_turns',
+            'games_completed', 'username'])
         for user in users:
             games_query = Game.query(ancestor=user.key)
+            # Only use games that are over
             games_query = games_query.filter(Game.game_over == True)
 
             if request.number_of_tiles:
                 games_query = games_query.filter(
                     Game.number_of_tiles == request.number_of_tiles.number)
-
             if request.dice_operation:
                 games_query = games_query.filter(
                     Game.dice_operation == request.dice_operation.name)
 
             games = games_query.fetch()
-            if not games:
+            # If this user has played less than 5 games, don't rank them.  Must
+            # complete 5 or more games to become ranked, due to the nature of
+            # ranking in Shut The Box.  It would be too easy for one player to
+            # play one game, get a perfect score, and then suddenly overtake
+            # the leaderboard
+            if len(games) < 5:
                 continue
-            (games_played, cumulative_score,
-                cumulative_number_of_turns, average_score,
-                average_number_of_turns) = Game.games_stats(games)
+            (games_completed, total_score, total_turns, average_score,
+                average_turns) = Game.games_stats(games)
 
-
-            if request.use_cumulative_score:
-                user_stats = UserStats(
-                    float(cumulative_score), games_played, user.username)
-            else:
-                user_stats = UserStats(
-                    average_score, games_played, user.username)
+            user_stats = UserStats(total_score, average_score,
+                average_turns, games_completed, user.username)
             leaderboard.append(user_stats)
-
+        # if no users have completed games quit early
         if not leaderboard:
-            return LeaderboardsResultForm(message="No games played yet!")
+            return LeaderboardsResultForm(message="No rankable players yet!")
+        # TODO: Think about sorting the results in parts to save time and
+        # processing power
         # Now to sort the results
-        logging.warning(leaderboard)
-        leaderboard.sort(key=attrgetter('score'))
-        logging.warning(leaderboard)
-
+        leaderboard.sort(key=attrgetter('average_score', 'average_turns',
+                'username'))
+        # Now to assign rank on the already sorted leaderboard list.  It's not
+        # as simple as just using enumerate because of possible ties
+        rank = 0
+        last_average_score = -1
+        last_average_turns = -1
+        for n, user in enumerate(leaderboard):
+            rank += 1
+            # Take into account the tie scenario
+            if user.average_score == last_average_score and \
+            user.average_turns == last_average_turns:
+                rank -= 1
+            # Need to put the UserStats object in a list so append will work
+            leaderboard[n] = [leaderboard[n]]
+            leaderboard[n].append(rank)
+            # Save off the last ranked user's statistics
+            last_average_score = user.average_score
+            last_average_turns = user.average_turns
+        # Now loop through the leaderboard one last time and put the content
+        # into a form
         forms  = []
-        for user in leaderboard:
+        for ranked_user in leaderboard:
+            user_stats = ranked_user[0]
+            rank = ranked_user[1]
             leaderboard_form = LeaderboardResultForm(
-                username=user.username,
-                games_played=user.games_played,
-                score=user.score)
+                username=user_stats.username,
+                average_score=user_stats.average_score,
+                average_turns=user_stats.average_turns,
+                total_score=user_stats.total_score,
+                games_completed=user_stats.games_completed,
+                rank=rank)
             forms.append(leaderboard_form)
-        message = "Users Found!"
-        if request.dice_operation:
-            message += " | Filter: dice_operation == {}"\
-                .format(request.dice_operation.name)
-        if request.number_of_tiles:
-            message += " | Filter: number_of_tiles == {}"\
-                .format(request.number_of_tiles.number)
-        if request.use_cumulative_score:
-            message += " | use_cumulative_score == True"
-        return LeaderboardsResultForm(items=forms, message=message)
+        return LeaderboardsResultForm(ranked_users=forms)
