@@ -93,10 +93,24 @@ class Game(ndb.Model):
 
         form.turns_played = recent_turn.turn
         form.score = sum(recent_turn.active_tiles)
-        # Pretty much a raw timestamp.
         # TODO: evaluate whether this should be human-readable or not
         form.timestamp = recent_turn.timestamp
         return form
+
+    def to_high_score_form(self):
+        """Form used in get_high_scores method"""
+        form = GameHighScoresResultForm()
+        form.score = self.final_score
+        form.username = self.key.parent().get().username
+        form.number_of_tiles = self.number_of_tiles
+        form.dice_operation = self.dice_operation
+        # TODO: make datetime more human readable
+        form.timestamp = self.timestamp
+        return form
+
+    def format_game_for_email(self, n, number_of_games):
+        text = ""
+        salutation = """Hello, {0}.  It looks like there are """
 
 
 class Turn(ndb.Model):
@@ -106,7 +120,9 @@ class Turn(ndb.Model):
     active_tiles = ndb.IntegerProperty(repeated=True)
     turn_over = ndb.BooleanProperty(required=True, default=False)
     game_over = ndb.BooleanProperty(required=True, default=False)
-    timestamp = ndb.DateTimeProperty(auto_now_add=True)
+    # auto_now=True sets the property to the current date/time when an entity
+    # is created and whenever it's updated
+    timestamp = ndb.DateTimeProperty(auto_now=True)
 
     # Methods for creating turn entities
     @classmethod
@@ -287,7 +303,7 @@ class UserRequestForm(messages.Message):
     dice_operation = messages.EnumField('DiceOperation', 3)
 
 
-class AllGamesForm(messages.Message):
+class GamesRequestForm(messages.Message):
     username = messages.StringField(1)
     games_in_progress = messages.BooleanField(2, default=False)
     finished_games = messages.BooleanField(3, default=False)
@@ -369,12 +385,34 @@ class TurnsStatusForm(messages.Message):
     turns = messages.MessageField(TurnStatusForm, 1, repeated=True)
 
 
+# Section for get_high_scores method
+class HighScoresRequestForm(messages.Message):
+    number_of_tiles = messages.EnumField('NumberOfTiles', 1)
+    dice_operation = messages.EnumField('DiceOperation', 2)
+    number_of_results = messages.IntegerField(3, default=20)
+
+
+class GameHighScoresResultForm(messages.Message):
+    score = messages.IntegerField(1)
+    username = messages.StringField(2)
+    number_of_tiles = messages.IntegerField(3)
+    dice_operation = messages.StringField(4)
+    timestamp = message_types.DateTimeField(5)
+
+
+class TotalHighScoresResultForm(messages.Message):
+    high_scores = messages.MessageField(GameHighScoresResultForm, 1,
+        repeated=True)
+    message = messages.StringField(2)
+
+
+# Section for get_user_rankings method
 class LeaderboardRequestForm(messages.Message):
     number_of_tiles = messages.EnumField('NumberOfTiles', 1)
     dice_operation = messages.EnumField('DiceOperation', 2)
 
 
-class LeaderboardResultForm(messages.Message):
+class UserLeaderboardResultForm(messages.Message):
     username = messages.StringField(1, required=True)
     average_score = messages.FloatField(2)
     average_turns = messages.FloatField(3)
@@ -383,9 +421,8 @@ class LeaderboardResultForm(messages.Message):
     rank = messages.IntegerField(6)
 
 
-
-class LeaderboardsResultForm(messages.Message):
-    ranked_users = messages.MessageField(LeaderboardResultForm, 1,
+class TotalLeaderboardResultForm(messages.Message):
+    ranked_users = messages.MessageField(UserLeaderboardResultForm, 1,
         repeated=True)
     message = messages.StringField(2)
 

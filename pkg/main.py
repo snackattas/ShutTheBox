@@ -5,10 +5,11 @@ from models import CreateUserRequestForm, StringMessage
 from models import NewGameRequestForm, GameResultForm
 from models import TurnRequestForm, TurnResultForm
 from models import UserRequestForm, UserStatsResultForm
-from models import AllGamesForm, GamesStatusResultForm
+from models import GamesRequestForm, GamesStatusResultForm
 from models import URLSafeKeyRequestForm, TurnsStatusForm, CancelResultForm
-from models import LeaderboardRequestForm, LeaderboardsResultForm
-from models import LeaderboardResultForm
+from models import HighScoresRequestForm, TotalHighScoresResultForm
+from models import LeaderboardRequestForm, TotalLeaderboardResultForm
+from models import UserLeaderboardResultForm
 from utils import get_by_urlsafe
 from collections import namedtuple
 from operator import attrgetter
@@ -18,9 +19,10 @@ NEW_GAME_REQUEST = endpoints.ResourceContainer(NewGameRequestForm)
 TURN_REQUEST = endpoints.ResourceContainer(TurnRequestForm,
     urlsafe_key=messages.StringField(1))
 USER_REQUEST = endpoints.ResourceContainer(UserRequestForm)
-ALL_GAMES_REQUEST = endpoints.ResourceContainer(AllGamesForm)
+GAMES_REQUEST = endpoints.ResourceContainer(GamesRequestForm)
 URLSAFE_KEY_REQUEST = endpoints.ResourceContainer(
         urlsafe_key=messages.StringField(1))
+HIGH_SCORES_REQUEST = endpoints.ResourceContainer(HighScoresRequestForm)
 LEADERBOARD_REQUEST = endpoints.ResourceContainer(LeaderboardRequestForm)
 
 @endpoints.api(name='shut_the_box', version='v1')
@@ -378,7 +380,7 @@ class ShutTheBoxApi(remote.Service):
     # TODO: This method, like user_stats, should probably be a GET.
     # The rubric calls for a method get_user_games, but I expanded this API to
     # have that functionality and more
-    @endpoints.method(request_message=ALL_GAMES_REQUEST,
+    @endpoints.method(request_message=GAMES_REQUEST,
                       response_message=GamesStatusResultForm,
                       path='games_report',
                       name='games_report',
@@ -386,7 +388,7 @@ class ShutTheBoxApi(remote.Service):
     def games_report(self, request):
         """Returns all games by default.
 
-        Each game is returned with its urlsafe key, the number of tiles and dice operation selected for the game, and whether the game is over or not.  Able to filter by username, number of tiles, and dice operation. User is not able to call all_games with both parameters games_in_progress and finished_games True, as that would be a contradiction.
+        Each game is returned with its urlsafe key, the number of tiles and dice operation selected for the game, and whether the game is over or not.  Able to filter by username, number of tiles, and dice operation. User is not able to call games_report with both parameters games_in_progress and finished_games True, as that would be a contradiction.
 
         :param games_in_progress (opt): If True, returns active games.  If False, returns both active games finished games.
         :type games_in_progress: boolean
@@ -413,13 +415,13 @@ class ShutTheBoxApi(remote.Service):
 
         :raises: NotFoundException, BadRequestException"""
 
+        # if username is passed in, look for only their games
         if request.username:
             user = User.query(User.username == request.username).get()
             if not user:
                 raise endpoints.NotFoundException(
                         'A user with the name {} does not exist!'.\
                         format(request.username))
-            # if username is passed in, look for only their games
             games_query = Game.query(ancestor=user.key)
         # Otherwise, just return all the games
         else:
@@ -427,7 +429,7 @@ class ShutTheBoxApi(remote.Service):
 
         if request.games_in_progress == True \
         and request.finished_games == True:
-            raise endpoints.BadRequestException("all_games() can't be called "
+            raise endpoints.BadRequestException("games_report can't be called "
             "with both parameters games_in_progress and finished_games True")
 
         if request.games_in_progress:
@@ -490,13 +492,86 @@ class ShutTheBoxApi(remote.Service):
         return TurnsStatusForm(
             turns=[turn.to_turn_status_form() for turn in turns])
 
+# # Section for get_high_scores method
+# class HighScoreRequestForm(messages.Message):
+#     number_of_tiles = messages.EnumField('NumberOfTiles', 1)
+#     dice_operation = messages.EnumField('DiceOperation', 2)
+#     number_of_results = messages.IntegerField(3)
+#
+#
+# class GameHighScoreResultForm(messages.Message):
+#     score = messages.IntegerField(1)
+#     username = messages.StringField(2)
+#     number_of_tiles = messages.IntegerField(3)
+#     dice_operation = messages.StringField(4)
+#     timestamp = message_types.DateTimeField(5)
+#
+#
+# class TotalHighScoreResultForm(messages.Message):
+#     high_scores = messages.MessageField(GameHighScoreResultForm, 1,
+#         repeated=True)
+#     message = messages.StringField(2)
+    @endpoints.method(request_message=HIGH_SCORES_REQUEST,
+                      response_message=TotalHighScoresResultForm,
+                      path='high_scores',
+                      name='high_scores',
+                      http_method='POST')
+    def get_high_scores(self, request):
+        """List of high scores.  In Shut The Box, lower scores are better, so a list of high scores is a list of the scores from lowest to highest.  In the case of a tie, order is determined by which game finished first.
+
+        The high scores are able to be filtered by dice_operation or number_of_tiles.
+
+        :param number_of_tiles (opt): If specified, filters to
+        return games with the specified number_of_tiles.
+        :type number_of_tiles: enum-{NINE, TWELVE}
+        :param dice_operation (opt): If specified, filters to
+        return games with the specified dice_operation.
+        :type dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :param number_of_results (opt): Number of high scores to return
+        :type number_of_results: integer. DEFAULT=20
+
+        :returns high_scores: List of games ordered by high scores.  Each game contains the parameters below.
+        :rtype high_score: list
+        :returns score: The final score.
+        :rtype score: integer
+        :returns username: A unique username.
+        :rtype username: string
+        :returns number_of_tiles: Number of tiles to play
+        Shut The Box with.
+        :rtype number_of_tiles: enum-{NINE, TWELVE}
+        :returns dice_operation: When two dice are rolled in a
+        turn, this determines if the number to aim for with the flipped tiles is the sum of the dice roll or the product.
+        :rtype dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :returns timestamp: The date/time which the game was completed.
+        :rtype timestamp: 
+        :returns message: Error message
+        :rtype message: string
+
+        :raises: BadArgumentError
+        """
+        # Order by the most recent lowest score
+        games_query = Game.query().order(Game.final_score, -Game.timestamp)
+        games_query = games_query.filter(Game.game_over == True)
+        if request.number_of_tiles:
+            games_query = games_query.filter(
+                Game.number_of_tiles == request.number_of_tiles.number)
+        if request.dice_operation:
+            games_query = games_query.filter(
+                Game.dice_operation == request.dice_operation.name)
+
+        games = games_query.fetch(limit=request.number_of_results)
+        if not games:
+            return TotalHighScoresResultForm(message="No games match criteria!")
+        return TotalHighScoresResultForm(
+            high_scores=[game.to_high_score_form() for game in games])
+
 
     @endpoints.method(request_message=LEADERBOARD_REQUEST,
-                      response_message=LeaderboardsResultForm,
+                      response_message=TotalLeaderboardResultForm,
                       path='leaderboard',
                       name='leaderboard',
                       http_method='POST')
-    def leaderboard(self, request):
+    def get_user_rankings(self, request):
         """List of ranked players.  Players are ranked by average_score from low to high, and in the case of a tie in average_score, the rank is determined by lowest average_turns.
 
         Players are only able to be ranked if they have completed 5 or more games.  The leaderboard is able to be filtered by dice_operation or number_of_tiles.
@@ -526,7 +601,7 @@ class ShutTheBoxApi(remote.Service):
 
         users = User.query().fetch()
         if not users:
-            return LeaderboardsResultForm(message="No users created yet!")
+            return TotalLeaderboardResultForm(message="No users created yet!")
         # Create an empty leaderboard list and populate it with the UserStats
         # namedtuple
         leaderboard = []
@@ -561,7 +636,7 @@ class ShutTheBoxApi(remote.Service):
             leaderboard.append(user_stats)
         # if no users have completed games quit early
         if not leaderboard:
-            return LeaderboardsResultForm(message="No rankable players yet!")
+            return TotalLeaderboardResultForm(message="No rankable players yet!")
         # TODO: Think about sorting the results in parts to save time and
         # processing power
         # Now to sort the results
@@ -590,7 +665,7 @@ class ShutTheBoxApi(remote.Service):
         for ranked_user in leaderboard:
             user_stats = ranked_user[0]
             rank = ranked_user[1]
-            leaderboard_form = LeaderboardResultForm(
+            leaderboard_form = UserLeaderboardResultForm(
                 username=user_stats.username,
                 average_score=user_stats.average_score,
                 average_turns=user_stats.average_turns,
@@ -598,4 +673,4 @@ class ShutTheBoxApi(remote.Service):
                 games_completed=user_stats.games_completed,
                 rank=rank)
             forms.append(leaderboard_form)
-        return LeaderboardsResultForm(ranked_users=forms)
+        return TotalLeaderboardResultForm(ranked_users=forms)

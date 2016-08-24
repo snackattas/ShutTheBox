@@ -12,6 +12,29 @@ indexes:
 
 - kind: Game
   properties:
+  - name: dice_operation
+  - name: game_over
+  - name: final_score
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  properties:
+  - name: game_over
+  - name: final_score
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  properties:
+  - name: game_over
+  - name: final_score
+    direction: desc
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  properties:
   - name: game_over
   - name: timestamp
     direction: desc
