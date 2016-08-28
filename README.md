@@ -30,23 +30,28 @@ Here's how to run the script:
 * 3rd party package: [requests](http://docs.python-requests.org/en/master/)
 * 3rd party package: [Mailgun](http://mailgun.com)
 
-## JSON Endpoints
-### [localhost:8000/lizard/JSON/](localhost:8000/lizard/JSON/)
-    Displays all lizards
-### localhost:8000/lizard/\[lizard_id\]/hobby/JSON/
-    Displays all hobbies of a particular lizard
-### localhost:8000/lizard/\[lizard_id\]/hobby/\[hobby_id\]/JSON/
-    Displays only one hobby
-## Atom Endpoints
-### [localhost:8000/lizard.atom/](localhost:8000/lizard.atom/)
-    Displays all lizards
-### [localhost:8000/hobby.atom/](localhost:8000/hobby.atom/)
-    Displays all hobbies
-### [localhost:8000/all.atom/](localhost:8000/all.atom/)
-    Displays all lizards and hobbies
-###[localhost:8000/changes.atom/](localhost:8000/changes.atom/)
-    Displays all content of the recent activity feed
-
-## Screenshots
-![Lizard Homepage](/../master/pkg/static/Lizard%20Homepage.JPG?raw=true "Lizard Homepage")
-![Lizard's Hobby](/../master/pkg/static/Lizard%20Hobby.JPG?raw=true "Lizard's Hobbies")
+## Cloud Endpoints
+#### create_user
+Creates a user
+Args
+#####username (string, req): A unique username without leading spaces.
+#####email (string, opt): A unique and valid email.  Email is validated using MAILGUN email validation API.
+#####email_notification (boolean, opt): True by default.  If true, user will receive email notifications of outstanding active games.
+Returns
+#####message: A message confirming user was created, or an error
+#### registerPlayer(player_name, tournament_id)
+Adds a player to a specific tournament. The database assigns a unique ID number to the player. Different players may have the same names but will receive different ID numbers.
+#### countPlayers(tournament_id)
+Returns the number of players currently registered in a specific tournament.
+#### deleteTournament(tournament_id)
+Removes the specified tournament.  All the tournament's players, matches, and records are also removed.
+#### deleteMatches(tournament_id)
+Removes all the match records from the database for a specific tournament.
+#### deletePlayers(tournament_id)
+Clear out all the player records from the database for a specific tournament.
+#### reportMatch(winner, loser, tie=None, bye=None, tournament_id)
+Records the outcome of a single match between two players in the same tournament.  Also able to record byes for a single player.
+#### playerStandings(tournament_id)
+Returns a list of (id, name, wins, matches) for each player in the tournament.  Player standing is calculated by a score assigned to each player.  Players are sorted from highest to lowest scoring.
+#### swissPairings(tournament_id)
+Returns a list of pairs of players for the next round of a match.  Each player is paired with the adjacent player in the standings.  If there are an odd number of players, the last player returned (the one with the lowest standing) will be the one which receives a bye.
