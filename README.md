@@ -4,11 +4,25 @@ This is a set of methods implementing the gameplay of the classic British pub ga
 Start playing [here](https://apis-explorer.appspot.com/apis-explorer/?base=https://zattas-game.appspot.com/_ah/api#p/shut_the_box/v1/)!
 
 ## Features
-* Played on the client side using Google Cloud Endpoints. The game state is remembered through url keys, enabling the game to be extensible to javascript clients or iOS/Android platforms in the future.
+* Played on the client side using Google Cloud Endpoints. 
+* Able to be used in javascript clients or iOS/Android platforms in the future.
 * Each game is associated with a user, enabling various user statistics and reports to be created. 
-* In addition to the standard Shut The Box gameplay with nine tiles and dice addition, users are able to configure games to contain twelve tiles (called "Full House") and/or multiplication of the dice instead of summing.
-* Users receive email notifications for incomplete games with turns more than 12 hours passed.
+* In addition to the standard Shut The Box gameplay with nine tiles and dice addition, users are able to configure games to contain twelve tiles (called "Full House") and/or multiplication of the dice.
+* Users receive email notifications for incomplete games.
 * A leaderboard features a list of users ranked by average score and average number of turns.
+
+## Rules of Shut The Box
+The game uses tiles numbered 1 to 9.  The player rolls two dice and flips any combination of tiles that match the sum of the roll. If every tile higher than 6 is flipped, the player then rolls only one dice.  The player keeps rolling and flipping until they can't match their roll with the remaining tiles.  The total of thet tiles left unflipped are then totaled, and that is the score.  Lower scores are therefore considered better, as they are the result of flipping more tiles.
+
+In this version of Shut The Box, the user has the ability to play with tiles numbered 1 to 12.  They are also able to choose to flip a combination of tiles that match the product of the dice roll, instead of the sum.
+
+## How to Play
+1. Create a user by calling create_user. 
+2. Create a game by calling new_game with your username and the dice operation/number of tiles to play with. Record the urlsafe_key that is returned.
+3. Call turn with the urlsafe_key. Your roll will be returned.
+4. Call turn again with the urlsafe_key and with flip_tiles as the combination of tiles that match the sum (or product) of the roll.
+5. Repeat step 4 until the game is over.
+6. Call new_game and play again!
 
 ## Technologies used
 * [Google App Engine](https://cloud.google.com/appengine/)
@@ -52,7 +66,7 @@ Creates a new game and returns the game's urlsafe key.
 * Raises: NotFoundException, ConflictException
 
 ### turn
-Plays one turn of Shut The Box.  To play Shut The Box, first call turn() with only a urlsafe_key and flip tiles null.  It returns a roll and a full set of tiles.  Each subsequent call of turn() must include both a urlsafe_key and flip_tiles, and turn() will determine the validity of flip_tiles and compute the next roll.  The goal is to flip all the tiles and get the lowest score possible.
+Plays one turn of Shut The Box.  To play Shut The Box, first call turn with only a urlsafe_key and flip tiles null.  It returns a roll and a full set of tiles.  Each subsequent call of turn must include both a urlsafe_key and flip_tiles, and turn will determine the validity of flip_tiles and compute the next roll.  The goal is to flip all the tiles and get the lowest score possible.
 * Args
   * urlsafe_key (string, req): The state token for a game of Shut The Box.
   * flip_tiles (list of non-negative integers, null/req): For the first turn, leave this parameter null.  On subsequent calls, flip_tiles are the integers to be flipped in response to the roll.
@@ -75,7 +89,7 @@ Cancels a Game entity and its children Turn entities.  User can only cancel game
 * Raises: BadRequestException, ValueError
 
 ### find_games
-Searches for games matching the passed in search criteria and returns basic information about them. Will return an error if both games_in_progress and finished_games are True.
+Searches for games matching the passed in search criteria and returns basic information about them. Will return an error if both games in progress and finished games are True.
 * Args
   * games_in_progress (boolean, opt): False by default. If True, filters by games in progress. 
   * finished_games (boolean, opt): False by default. If True, filters by finished games. 
@@ -142,7 +156,7 @@ List of ranked users.  Users are ranked by average score from low to high, and i
 * Raises: NotFoundException
 
 ### get_game_history
-Returns the history of moves for the game passed in, allowing game progression to be viewed move by move.
+Returns the history of moves for the game passed in, allowing game progression to be viewed move by move. Similar to chess's [PGN](https://en.wikipedia.org/wiki/Portable_Game_Notation)
 * Args
   * urlsafe_key (string, req): The state token for a game of Shut The Box.
 * Returns
