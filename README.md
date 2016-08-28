@@ -31,27 +31,75 @@ Here's how to run the script:
 * 3rd party package: [Mailgun](http://mailgun.com)
 
 ## Cloud Endpoints
-###create_user
-Creates a user
+### create_user
+Creates a user.
 * Args
   * username (string, req): A unique username without leading spaces.
   * email (string, opt): A unique and valid email.  Email is validated using MAILGUN email validation API.
-  * email_notification (boolean, opt): True by default.  If true, user will receive email notifications of outstanding active games.
+  * email_notification (boolean, opt): True by default.  If True, user will receive email notifications of outstanding active games that haven't been played in the last 12 hours.
 * Returns
   * message: A message confirming user was created, or an error
-#### registerPlayer(player_name, tournament_id)
-Adds a player to a specific tournament. The database assigns a unique ID number to the player. Different players may have the same names but will receive different ID numbers.
-#### countPlayers(tournament_id)
-Returns the number of players currently registered in a specific tournament.
-#### deleteTournament(tournament_id)
-Removes the specified tournament.  All the tournament's players, matches, and records are also removed.
-#### deleteMatches(tournament_id)
-Removes all the match records from the database for a specific tournament.
-#### deletePlayers(tournament_id)
-Clear out all the player records from the database for a specific tournament.
-#### reportMatch(winner, loser, tie=None, bye=None, tournament_id)
-Records the outcome of a single match between two players in the same tournament.  Also able to record byes for a single player.
-#### playerStandings(tournament_id)
-Returns a list of (id, name, wins, matches) for each player in the tournament.  Player standing is calculated by a score assigned to each player.  Players are sorted from highest to lowest scoring.
-#### swissPairings(tournament_id)
-Returns a list of pairs of players for the next round of a match.  Each player is paired with the adjacent player in the standings.  If there are an odd number of players, the last player returned (the one with the lowest standing) will be the one which receives a bye.
+* Raises: ConflictException
+
+### set_email_notification_preference
+Allows a user to change their email notification preference.
+* Args
+  * username (string, req): A unique username.
+  * email_notification (boolean, req): If True, user will receive email notifications of outstanding active games that haven't been played in the last 12 hours.  If False, users will stop receiving these notifications.
+* Returns
+  * message: A message confirming email notification preference, or an error.
+* Raises: NotFoundException
+
+### new_game
+Creates a new game and returns the game's urlsafe key.
+* Args
+  * username (string, req): A unique username.
+  * number_of_tiles (enum, req): Number of tiles to play Shut The Box with.
+  * dice_operation (enum, req): Determines if the number to aim for with the flipped tiles is the sum of the dice roll or the product.
+* Returns
+  * username: User's username.
+  * number_of_tiles: Number of tiles to play Shut The Box with.
+  * dice_operation: Determines if the number to aim for with the flipped tiles is the sum of the dice roll or the product.
+  * urlsafe_key: This serves as the state token for a game of Shut The Box.
+  * message: A helpful message or an error message.
+* Raises: NotFoundException, ConflictException
+
+### turn
+Plays one turn of Shut The Box.  To play Shut The Box, first call turn() with only a urlsafe_key and flip tiles null.  It returns a roll and a full set of tiles.  Each subsequent call of turn() must include both a urlsafe_key and flip_tiles, and turn() will determine the validity of flip_tiles and compute the next roll.  The goal is to flip all the tiles and get the lowest score possible.
+* Args
+  * urlsafe_key (string, req): The state token for a game of Shut The Box.
+  * flip_tiles (list of non-negative integers, null/req): For the first turn, leave this parameter null.  On subsequent calls, flip_tiles are the integers to be flipped in response to the roll.
+* Returns
+  * urlsafe_key: The state token for a game of Shut The Box.
+  * roll: A list of two integers, each between 1-6, if there are active tiles above 7 in play.  If all tiles above 7 are inactive only one integer is returned.
+  * active_tiles: The newly computed active_tiles left after the roll has been played.
+  * score: A running score of the active_tiles in play. 
+  * game_over: If True, game is over.
+  * message: A helpful message or an error message.
+* Raises: BadRequestException, ValueError
+
+### cancel_game
+Cancels a Game entity and its children Turn entities.  User can only cancel games in progress.
+* Args
+  * urlsafe_key (string, req): The state token for a game of Shut The Box.
+* Returns
+  * cancelled: True if the game entity and Turn entities are deleted from the datastore; False if the game entity in question is completed.
+  * error: Helpful error message.
+* Raises: BadRequestException, ValueError
+
+### find_games
+Searches for games matching the passed in search criteria and returns basic information about them. Will return an error if both games_in_progress and finished_games are True.
+* Args
+  * games_in_progress (boolean, opt): False by default. If True, filters by games in progress. 
+  * finished_games (boolean, opt): False by default. If True, filters by finished games. 
+  * number_of_tiles (enum, opt): Filters games by number of tiles.
+  * dice_operation (enum, opt): Filters games by dice operation.
+  * username (string, opt): Filters by username.
+* Returns
+  * games: A list of games. Each game is made up of the parameters below.
+   * urlsafe_key: The state token for this game of Shut The Box.
+   * number_of_tiles: Number of tiles for this game.
+   * dice_operation: Dice operation for this game.
+   * game_over: If true, this game is over.
+   * turns_played: Number of turns played for this game.
+* Raises: NotFoundException, BadRequestException
