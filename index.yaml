@@ -20,6 +20,12 @@ indexes:
 
 - kind: Game
   properties:
+  - name: dice_operation
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  properties:
   - name: game_over
   - name: final_score
   - name: timestamp
@@ -30,6 +36,14 @@ indexes:
   - name: game_over
   - name: final_score
     direction: desc
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  properties:
+  - name: game_over
+  - name: number_of_tiles
+  - name: final_score
   - name: timestamp
     direction: desc
 
@@ -43,6 +57,13 @@ indexes:
   ancestor: yes
   properties:
   - name: game_over
+  - name: timestamp
+    direction: desc
+
+- kind: Game
+  ancestor: yes
+  properties:
+  - name: number_of_tiles
   - name: timestamp
     direction: desc
 

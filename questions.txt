@@ -1,26 +1,8 @@
--should I prevent bad input in my functions?
---like in the flip tiles field, where the user enters numbers.  SHould i prevent negatives, strings, or null?
--Should I validate user's emails? How do I do that?
-
--Is turn too large?
-
--Should I create a separate function for all error strings, and string messages that get shown to players?
-
--What are some good places to incorporate memcaching and task queues/cron jobs?
-
--does my init file structure look sound?
-
--do my Enums in models look ok?  It's sort of weird that in the API Explorer a user will have to type "ADDITION" for dice_operation and "NINE" for number_of_dice.  I'd really prefer it if users could select from a drop-down list or type the number out.
-
-
--is the way that I split the utility function in utils and have the class functions in models okay?
-
--Google App Engine GET vs POST.  It seems if I change the http_method in the @endpoints.method to GET, the API isn't allowed to receive any parameters.  So does that mean that for methods that are simply querying the datastore for information, andnot actually storing/posting any data, they still need to be POSTS?
-
 TODO
--Add a function to get the average score and the average # of turns it takes for a player to finish a game
--Add a function to get the amount of games a player has open
--Add a function that gives a play-by-play history of a game
--Add a leaderboard function to get the top scores
--enable players to play with unlimited tiles.
---Create some sort of algorithm that decides when to decrement the amount of dice when there are many tiles
+--Enable players to play with unlimited tiles.
+--Create some sort of algorithm that decides when to decrement the amount of dice when there are many tiles, for good gameplay
+--Google App Engine GET vs POST.  It seems if I change the http_method in the @endpoints.method to GET, the API isn't allowed to receive any parameters.  So does that mean that for methods that are simply querying the datastore for information, andnot actually storing/posting any data, they still need to be POSTS?
+--Think about use of enums, is there a better data model?
+--Could I add to __init__.py to make less imports?
+--Is main.turn too large? split it up in different files/functions that have more clear tasks
+--Is my error handling consistent?

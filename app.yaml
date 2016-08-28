@@ -12,6 +12,10 @@ handlers:
 - url: /_ah/spi/.*
   script: ShutTheBox.api
 
+- url: /pkg
+  static_dir: pkg
+  application_readable: true
+
 # - url: /tasks/cache_average_attempts
 #   script: main.app
 #

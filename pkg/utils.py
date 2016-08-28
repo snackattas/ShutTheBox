@@ -1,6 +1,7 @@
-from pkg import *
-from models import Turn
-from random import choice
+"""utils.py - File for collecting general utility functions."""
+
+import endpoints
+from google.appengine.ext import ndb
 
 
 def get_by_urlsafe(urlsafe, model):

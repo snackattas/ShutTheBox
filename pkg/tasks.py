@@ -1,30 +1,22 @@
-#!/usr/bin/env python
-
-"""tasks.py - This file contains handlers that are called by taskqueue and/or
-cronjobs."""
-import logging
+"""tasks.py - This file contains handlers that are called by cronjobs."""
 
 import webapp2
-from main import ShutTheBoxApi
-
 import datetime
 from models import User, Game
 from collections import namedtuple
 from google.appengine.api import mail, app_identity
 
-import requests
-from settings import MAILGUN_DOMAIN_NAME, MAILGUN_PRIVATE_API_KEY
-from settings import MAILGUN_PUBLIC_API_KEY, MAILGUN_SANDBOX_SENDER
-# --smtp_host=smtp.gmail.com --smtp_port=587 --smtp_user=zach.attas@gmail.com --smtp_password=chrimbus5
+
 class SendReminderEmail(webapp2.RequestHandler):
     def get(self):
-        """If the User has not made a move in an active game for more than 12 hours, send a reminder email that includes the current game state."""
+        """If the User has not made a move in an active game for more than 12
+        hours, send a reminder email that includes the current game state."""
         users = User.query(User.email != None).fetch()
         if users is None:
             return
         app_id = app_identity.get_application_id()
         twelve_hours_ago = datetime.datetime.now() - \
-            datetime.timedelta(hours=12)
+            datetime.timedelta(minutes=1)
 
         inactive_users = []
         GameData = namedtuple('GameData',
@@ -95,12 +87,6 @@ Number of incomplete games: {1}
                            user.email,
                            subject,
                            body)
-#
-# class UpdateAverageMovesRemaining(webapp2.RequestHandler):
-#     def post(self):
-#         """Update game listing announcement in memcache."""
-#         GuessANumberApi._cache_average_attempts()
-#         self.response.set_status(204)
 
 
 app = webapp2.WSGIApplication([
