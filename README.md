@@ -1,12 +1,14 @@
 # Shut The Box
-This is a set of methods implementing the gameplay of the classic British pub game [Shut The Box](https://en.wikipedia.org/wiki/Shut_the_Box), created as project 8 of [Udacity's Full Stack Web Developer Nanodegree](https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd004).  The entire game is implemented on the server side through Google's Cloud Endpoints.  Begin playing [here](https://apis-explorer.appspot.com/apis-explorer/?base=https://zattas-game.appspot.com/_ah/api#p/shut_the_box/v1/)
+This is a set of methods implementing the gameplay of the classic British pub game [Shut The Box](https://en.wikipedia.org/wiki/Shut_the_Box), created as project 8 of Udacity's [Full Stack Web Developer Nanodegree](https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd004).  The entire game is implemented on the server side through Google's Cloud Endpoints.  
+
+Start playing [here](https://apis-explorer.appspot.com/apis-explorer/?base=https://zattas-game.appspot.com/_ah/api#p/shut_the_box/v1/)!
 
 ## Features
-* The game is played on the client side using endpoints, and the state of the game is remembered through url keys, enabling the game to be extensible to javascript clients or iOS/Android platforms in the future.
-* Each Shut The Box game is associated with a user, enabling various user statistics and reports to be created. 
-* In addition to the standard Shut The Box gameplay with nine tiles and summing up the dice, users are able to configure games to contain twelve tiles (called "Full House") and/or multiplication of the dice instead of summing.
-* Users receive email notifications for incomplete games of Shut The Box with turns more than 12 hours passed.  Users can of opt out of this email notification.
-* A leaderboard features a list of users ranked by average score.
+* Played on the client side using Google Cloud Endpoints. The game state is remembered through url keys, enabling the game to be extensible to javascript clients or iOS/Android platforms in the future.
+* Each game is associated with a user, enabling various user statistics and reports to be created. 
+* In addition to the standard Shut The Box gameplay with nine tiles and dice addition, users are able to configure games to contain twelve tiles (called "Full House") and/or multiplication of the dice instead of summing.
+* Users receive email notifications for incomplete games with turns more than 12 hours passed.
+* A leaderboard features a list of users ranked by average score and average number of turns.
 
 ## Configuring a development environment
 1. Download the github repository
