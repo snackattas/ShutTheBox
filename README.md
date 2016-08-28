@@ -1,41 +1,50 @@
-# ShutTheBox
-A traditional pub game using dice and a counting box with numbered tiles for one or more players, often involving stakes
+# Shut The Box
+This is a set of methods implementing the gameplay of the classic British pub game [Shut The Box](https://en.wikipedia.org/wiki/Shut_the_Box), created as project 8 of [Udacity's Full Stack Web Developer Nanodegree](https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd004).  The entire game is implemented on the server side through Google's Cloud Endpoints.  Begin playing [here](https://apis-explorer.appspot.com/apis-explorer/?base=https://zattas-game.appspot.com/_ah/api#p/shut_the_box/v1/)
 
+## Features
+* The game is played on the client side using endpoints, and the state of the game is remembered through url keys, enabling the game to be extensible to javascript clients or iOS/Android platforms in the future.
+* Each Shut The Box game is associated with a user, enabling various user statistics and reports to be created. 
+* In addition to the standard Shut The Box gameplay with nine tiles and summing up the dice, users are able to configure games to contain twelve tiles (called "Full House") and/or multiplication of the dice instead of summing.
+* Users receive email notifications for incomplete games of Shut The Box with turns more than 12 hours passed.  Users can of opt out of this email notification.
+* A leaderboard features a list of users ranked by average score.
 
-Plays one turn of Shut The Box.
+## Configuring a development environment
+1. Download the github repository
+2. Navigate to the top-level directory and boot up the app with the command `python lizardCatalog.py`. Press ctrl+c to shut down the app.
+3. Open an internet browser and enter the url `localhost:8000`.
 
-To play Shut The Box, first call turn() with only a urlsafe_key and flip_tiles null.  It returns a roll and a full set of tiles.
-Each subsequent call of turn() must include both a urlsafe_key and
-flip_tiles, and turn() will determine the validity of flip_tiles and compute the next roll.  The goal is to flip all the tiles and get the lowest score possible.
+## Test Data
+If you want to populate the lizard database with data automatically, use the [testData.py](https://github.com/snackattas/LizardApp/blob/master/testData.py)  script.  
+Here's how to run the script:
 
-:param urlsafe_key (req): This is the urlsafe_key returned
-from calling new_game().  It serves as the state token for a single
-game of Shut The Box.
-:type urlsafe_key: string
-:param flip_tiles (opt): Leave this parameter null for
-the first call of turn().  On subsequent calls, flip_tiles are the
-integers to be flipped in response to the roll.
-:type flip_tiles: list of non-negative integers
+1. First follow the setup steps to get the app up and running.
+2. Create a user by logging into the web app.  Record the user id of your user.  It will be shown in the flash message.
+3. In the top-level directory, run this command `python testData.py [user id]` subbing in "user id" with your user id.
 
-:returns urlsafe_key (req): The same urlsafe_key passed in.
-:rtype urlsafe_key: string
-:returns roll (opt): Returns a list of two integers between 1-6 if
-the active_tiles above 7 are in play.  If all tiles 7 and above are
-not active, returns a list of 1 integer between 1-6.  No roll is
-returned in the case of a perfect score.
-:rtype roll: list of non-negative integers
-:returns active_tiles (opt): The active_tiles left after the roll has
-been played.
-:rtype active_tiles: a list of non-negative integers
-:returns valid_move (req): True if flip_tiles played are valid,
-False if they are not valid.  If False, new turn is not created.
-:rtype valid_move: boolean
-:returns score (opt): a running sum of the active_tiles in play
-:rtype score: non-negative integer
-:returns game_over (req): If True, game is over.  If False,
-more turns can be played.
-:rtype game_over: boolean
-:returns message (req): Helpful message.
-:rtype message: string
+## Technologies used
+* [Google App Engine](https://cloud.google.com/appengine/)
+* [Google Cloud Endpoints](https://cloud.google.com/endpoints/)
+* Language: Python v2.7
+* 3rd party package: [requests](http://docs.python-requests.org/en/master/)
+* 3rd party package: [Mailgun](http://mailgun.com)
 
-:raises: BadRequestException, ValueError
+## JSON Endpoints
+### [localhost:8000/lizard/JSON/](localhost:8000/lizard/JSON/)
+    Displays all lizards
+### localhost:8000/lizard/\[lizard_id\]/hobby/JSON/
+    Displays all hobbies of a particular lizard
+### localhost:8000/lizard/\[lizard_id\]/hobby/\[hobby_id\]/JSON/
+    Displays only one hobby
+## Atom Endpoints
+### [localhost:8000/lizard.atom/](localhost:8000/lizard.atom/)
+    Displays all lizards
+### [localhost:8000/hobby.atom/](localhost:8000/hobby.atom/)
+    Displays all hobbies
+### [localhost:8000/all.atom/](localhost:8000/all.atom/)
+    Displays all lizards and hobbies
+###[localhost:8000/changes.atom/](localhost:8000/changes.atom/)
+    Displays all content of the recent activity feed
+
+## Screenshots
+![Lizard Homepage](/../master/pkg/static/Lizard%20Homepage.JPG?raw=true "Lizard Homepage")
+![Lizard's Hobby](/../master/pkg/static/Lizard%20Hobby.JPG?raw=true "Lizard's Hobbies")
