@@ -175,3 +175,7 @@ Returns the history of moves for the game passed in, allowing game progression t
 * Follow these instructions to run Google App Engine with an email server, so the SendReminderEmail class functions as designed:
   * https://support.google.com/mail/troubleshooter/1668960?hl=en&rd=1
   * http://stackoverflow.com/questions/38671257/send-email-from-python-webapp2-google-app-engine
+* I created a testing endpoint called test_method.  It's at the bottom of main.py.  It's commented out in production.  It creates 100 users, each with fake emails, and creates 20 randomly assembled games per user. It also has the ability to delete all the Users/Games/Turns in the system, ideally run after testing is over. To use this testing method:
+  1. Uncomment the code at the bottom of main.py
+  2. Uncomment the import statements at the bottom of the import statements at the top of main.py
+  3. Uncomment the classes InsertOrDeleteDataRequestForm and InsertOrDeleteDataResultForm at the bottom of models.py
