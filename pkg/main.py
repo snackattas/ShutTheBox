@@ -29,7 +29,7 @@ from collections import namedtuple
 from operator import attrgetter
 import pickle
 
-# Only import these methods if using the insert_test_data method
+# # ONLY UNCOMMENT/IMPORT THE MODULES BELOW IF USING THE test_method
 # from models import InsertOrDeleteDataRequestForm, InsertOrDeleteDataResultForm
 # INSERT_OR_DELETE_REQUEST = endpoints.ResourceContainer(
 #     InsertOrDeleteDataRequestForm)
@@ -76,9 +76,8 @@ class ShutTheBoxApi(remote.Service):
         :param email (opt): A unique and valid email.  Email is validated using
         MAILGUN email validation API.
         :type email: string
-        :param email_notification (opt): True by default.  If true, user will
+        :param email_notification (opt): True by default.  If True, user will
         receive email notifications of outstanding active games.
-
         :type email_notification: boolean
 
         :returns message: A message confirming user was created, or an error
@@ -133,15 +132,18 @@ class ShutTheBoxApi(remote.Service):
                       name='email_notification',
                       http_method='POST')
     def set_email_notification_preference(self, request):
-        """Allows a user to change their email notification preferences.
+        """Allows a user to change their email notification preference.
 
         :param username (req): A unique username without leading spaces.
         :type username: string
         :param email_notification (req): If True, user will receive email
-        notifications.  If False, users will not receive these notifications
+        notifications of outstanding active games that haven't been played in
+        the last 12 hours.  If False, users will stop receiving these
+        notifications.
         :type email_notifications: boolean
 
-        :returns message: Message indicating set email notification preferences
+        :returns message: A message confirming email notification preference,
+        or an error.
         :rtype message: string"""
 
         user = User.query(User.username == request.username).get()
@@ -161,7 +163,7 @@ class ShutTheBoxApi(remote.Service):
                       name='new_game',
                       http_method='POST')
     def new_game(self, request):
-        """Creates a new game.
+        """Creates a new game and returns the game's urlsafe key.
 
         :param username (req): A unique username.
         :type username: string
@@ -172,7 +174,7 @@ class ShutTheBoxApi(remote.Service):
         sum of the dice roll or the product.
         :type dice_operation: enum-{ADDITION, MULTIPLICATION}
 
-        :returns username: A unique username.
+        :returns username: User's username.
         :rtype username: string
         :returns number_of_tiles: Number of tiles to play Shut The Box with.
         :rtype number_of_tiles: enum-{NINE, TWELVE}
@@ -180,9 +182,8 @@ class ShutTheBoxApi(remote.Service):
         this determines if the number to aim for with the flipped tiles is the
         sum of the dice roll or the product.
         :rtype dice_operation: enum-{ADDITION, MULTIPLICATION}
-        :returns urlsafe_key: This is the urlsafe_key returned from calling
-        new_game().  It serves as the state token for a single game of Shut The
-        Box.
+        :returns urlsafe_key: This serves as the state token for a game of Shut
+        The Box.
         :rtype urlsafe-key: string
         :returns message: A helpful message or an error message.
         :rtype message: string
@@ -218,9 +219,7 @@ class ShutTheBoxApi(remote.Service):
         compute the next roll.  The goal is to flip all the tiles and get the
         lowest score possible.
 
-        :param urlsafe_key (req): This is the urlsafe_key returned from
-        calling new_game().  It serves as the state token for a single game
-        of Shut The Box.
+        :param urlsafe_key (req): The state token for a game of Shut The Box.
         :type urlsafe_key: string
         :param flip_tiles (opt): Leave this parameter null for the first call of
          turn().  On subsequent calls, flip_tiles are the integers to be
@@ -229,23 +228,21 @@ class ShutTheBoxApi(remote.Service):
 
         :returns urlsafe_key: The same urlsafe_key passed in.
         :rtype urlsafe_key: string
-        :returns roll: Returns a list of two integers between 1-6 if
-        the active_tiles above 7 are in play.  If all tiles 7 and above are
-        not active, returns a list of 1 integer between 1-6.  No roll is
-        returned in the case of a perfect score.
+        :returns roll: A list of two integers, each between 1-6, if there are
+        active tiles above 7 in play.  If all tiles above 7 are inactive only
+        one integer is returned.
         :rtype roll: list of non-negative integers
-        :returns active_tiles: The active_tiles left after the roll has
-        been played.
-        :rtype active_tiles: a list of non-negative integers
-        :returns valid_move: True if flip_tiles played are valid,
-        False if they are not valid.  If False, new turn is not created.
+        :returns active_tiles: The newly computed active_tiles left after the
+        roll has been played.
+        :rtype active_tiles: A list of non-negative integers
+        :returns valid_move: True if flip_tiles played are valid, False if they
+        are not valid.
         :rtype valid_move: boolean
-        :returns score: a running sum of the active_tiles in play
+        :returns score: A running score of the active_tiles in play.
         :rtype score: non-negative integer
-        :returns game_over: If True, game is over.  If False,
-        more turns can be played.
+        :returns game_over: If True, game is over.
         :rtype game_over: boolean
-        :returns message: Helpful message.
+        :returns message: A helpful message or an error message.
         :rtype message: string
 
         :raises: BadRequestException, ValueError"""
@@ -328,14 +325,12 @@ class ShutTheBoxApi(remote.Service):
         that it's better to just cancel games outright instead of somehow
         marking them as deleted in the database.
 
-        :param urlsafe_key (req): This is the urlsafe_key returned
-        from calling new_game().  It serves as the state token for a single
-        game of Shut The Box.
+        :param urlsafe_key (req): The state token for a game of Shut The Box.
         :type urlsafe_key: string
 
         :returns cancelled: True if the game entity and Turn entities are
         deleted from the datastore; False if the game entity in question is
-        already completed.
+        completed.
         :rtype cancelled: boolean
         :returns error: Helpful error message.
         :rtype error: string
@@ -365,41 +360,37 @@ class ShutTheBoxApi(remote.Service):
                       name='find_games',
                       http_method='POST')
     def find_games(self, request):
-        """Returns basic information about each game matching the filter
-        parameters.
+        """Searches for games matching the passed in search criteria and
+        returns basic information about them.
 
-        User is not able to call games_report with both parameters
-        games_in_progress and finished_games True, as that would be a
-        contradiction.
+        Will return an error if both games_in_progress and finished_games are
+        True.
 
-        :param games_in_progress (opt): If True, returns only games in progress
+        :param games_in_progress (opt): False by default. If True, filters by
+        games in progress.
         :type games_in_progress: boolean
-        :param finished_games (opt): If True, returns only finished games
+        :param finished_games (opt): False by default. If True, filters by
+        finished games.
         :type finished_games: boolean
-        :param username (opt): A unique username.
-        :type username: string
-        :param number_of_tiles (opt): If specified, filters to return games
-        with the specified number_of_tiles.
+        :param number_of_tiles (opt): Filters games by number of tiles.
         :type number_of_tiles: enum-{NINE, TWELVE}
-        :param dice_operation (opt): If specified, filters to return games
-        with the specified dice_operation.
+        :param dice_operation (opt): Filters games by dice operation.
         :type dice_operation: enum-{ADDITION, MULTIPLICATION}
+        :param username (opt): Filters by username.
+        :type username: string
 
-        :returns games: A list of games. Each game contains the parameters below.
+        :returns games: A list of games. Each game is made up of the parameters
+        below.
         :rtype games: list
-        :returns urlsafe_key: The urlsafe_key used to play the game.
+        :returns urlsafe_key: The state token for this game of Shut The Box.
         :rtype urlsafe_key: string
-        :returns number_of_tiles: Number of tiles to play
-        Shut The Box with.
+        :returns number_of_tiles: Number of tiles for this game.
         :rtype number_of_tiles: enum-{NINE, TWELVE}
-        :returns dice_operation: When two dice are rolled in a
-        turn, this determines if the number to aim for with the flipped tiles is
-        the sum of the dice roll or the product.
+        :returns dice_operation: Dice operation for this game.
         :rtype dice_operation: enum-{ADDITION, MULTIPLICATION}
-        :returns game_over: If True, game is over.  If False,
-        more turns can be played.
+        :returns game_over: If True, this game is over.
         :rtype game_over: boolean
-        :returns turns_played: Number of turns played.
+        :returns turns_played: Number of turns played for this game.
         :rtype turns_played: integer
 
         :raises: NotFoundException, BadRequestException"""
@@ -418,7 +409,8 @@ class ShutTheBoxApi(remote.Service):
         if request.games_in_progress == True \
             and request.finished_games == True:
             raise endpoints.BadRequestException("games_report can't be called "
-                "with both parameters games_in_progress and finished_games True")
+                "with both parameters games_in_progress and finished_games "
+                "True")
 
         if request.games_in_progress:
             games_query = games_query.filter(Game.game_over == False)
@@ -445,7 +437,7 @@ class ShutTheBoxApi(remote.Service):
                       name='user_stats',
                       http_method='POST')
     def get_user_stats(self, request):
-        """Returns basic user statistics for a particular user.
+        """Returns user statistics for a particular user.
 
         The statistics are completed games, total score, total turns, average
         score, and average turns.  Able to filter by dice operation and number
@@ -460,16 +452,18 @@ class ShutTheBoxApi(remote.Service):
         with the specified dice_operation.
         :type dice_operation: enum-{ADDITION, MULTIPLICATION}
 
-        :returns games_completed: Number of games completed
+        :returns games_completed: Number of games completed.
         :rtype games_completed: integer
-        :returns total_score: Total score of completed games
+        :returns total_score: Total score of completed games.
         :rtype total_score: integer
-        :returns total_turns: Total number of turns for all completed games
-        :returns average_score: Average score from all completed games
+        :returns total_turns: Total number of turns for completed games.
+        :returns average_score: Average score from completed games, rounded
+        to 3 decimal places.
         :rtype average_score: float
-        :returns average_turns: Average turns from all completed games
+        :returns average_turns: Average turns fromcompleted games, rounded
+        to 3 decimal places.
         :rtype average_turns: float
-        :returns message: Helpful error message
+        :returns message: Helpful error message.
         :rtype message: string
 
         :raises: NotFoundException"""
@@ -521,9 +515,10 @@ class ShutTheBoxApi(remote.Service):
                       name='high_scores',
                       http_method='POST')
     def get_high_scores(self, request):
-        """List of high scores.  In Shut The Box, lower scores are better, so a
-        list of high scores is a list of the scores from lowest to highest.  In
-        the case of a tie, order is determined by which game finished first.
+        """Returns a list of high scores.  In Shut The Box, lower scores are
+        better, so a list of high scores is a list of the scores from lowest to
+        highest.  In the case of a tie, order is determined by which game
+        finished first.
 
         The high scores are able to be filtered by dice_operation or
         number_of_tiles.
@@ -542,18 +537,16 @@ class ShutTheBoxApi(remote.Service):
         :rtype high_score: list
         :returns score: The final score.
         :rtype score: integer
-        :returns username: A unique username.
+        :returns username: The user who played this game.
         :rtype username: string
-        :returns number_of_tiles: Number of tiles to play
+        :returns number_of_tiles: Number of tiles for this game.
         Shut The Box with.
         :rtype number_of_tiles: enum-{NINE, TWELVE}
-        :returns dice_operation: When two dice are rolled in a
-        turn, this determines if the number to aim for with the flipped tiles is
-        the sum of the dice roll or the product.
+        :returns dice_operation: Dice operation for this game.
         :rtype dice_operation: enum-{ADDITION, MULTIPLICATION}
-        :returns timestamp: The date/time which the game was completed.
+        :returns timestamp: The date and time when the game was completed.
         :rtype timestamp:
-        :returns message: Error message
+        :returns message: Helpful error message
         :rtype message: string
 
         :raises: BadArgumentError"""
@@ -584,40 +577,42 @@ class ShutTheBoxApi(remote.Service):
                       name='leaderboard',
                       http_method='POST')
     def get_leaderboard(self, request):
-        """List of ranked players.  Players are ranked by average_score from low
-        to high, and in the case of a tie in average_score, the rank is
+        """List of ranked users.  Users are ranked by average_score from low
+        to high, and in the case of a tie in average score, the rank is
         determined by lowest average_turns.
 
-        Players are only able to be ranked if they have completed 5 or more
-        games.  The leaderboard is able to be filtered by dice_operation or
-        number_of_tiles.
+        Users are only able to be ranked if they have completed 5 or more
+        games.  The leaderboard is able to be filtered by dice operation and/or
+        number of tiles.
 
-        :param number_of_tiles (opt): If specified, filters to
-        return games with the specified number_of_tiles.
+        :param number_of_tiles (opt): Filters leaderboard by number of tiles.
         :type number_of_tiles: enum-{NINE, TWELVE}
-        :param dice_operation (opt): If specified, filters to
-        return games with the specified dice_operation.
+        :param dice_operation (opt): Filters leaderboard by dice operation.
         :type dice_operation: enum-{ADDITION, MULTIPLICATION}
-        :param username (opt): Unique username.  If specified, filters to
-        return games from only that user.
+        :param username (opt): If specified returns rank of only that user.
         :type username: string
 
+        :returns ranked_users: List of users ordered by rank.  Each user is
+        made up of the parameters below.
+        :rtype ranked_users: list
         :returns username: A unique username.
         :rtype username: string
-        :returns total_turns: Total number of turns for all completed games
-        :rtype total_turns: integer
-        :returns average_score: Average score from all completed games
-        :rtype average_score: float
-        :returns average_turns: Average turns from all completed games
-        :rtype average_turns: float
-        :returns total_score: Total score of completed games
+        :returns total_score: Total score of completed games.
         :rtype total_score: integer
-        :returns games_completed: Number of games completed
+        :returns total_turns: Total number of turns for completed games.
+        :rtype total_turns: integer
+        :returns average_score: Average score from completed games.
+        :rtype average_score: float
+        :returns average_turns: Average turns from completed games.
+        :rtype average_turns: float
+        :returns games_completed: Number of games completed.
         :rtype games_completed: integer
         :returns rank: Rank of the user.
         :rtype rank: integer
-        :returns message: Helpful error message
-        :rtype message: string"""
+        :returns message: Helpful error message.
+        :rtype message: string
+
+        :raises: NotFoundException"""
 
         if request.username:
             user = User.query(User.username == request.username).get()
@@ -651,7 +646,7 @@ class ShutTheBoxApi(remote.Service):
             games = games_query.fetch()
             # If this user has played less than 5 games, don't rank them.  Must
             # complete 5 or more games to become ranked, due to the nature of
-            # ranking in Shut The Box.  It would be too easy for one player to
+            # ranking in Shut The Box.  It would be too easy for one user to
             # play one game, get a perfect score, and then suddenly overtake
             # the leaderboard
             if len(games) < 5:
@@ -665,7 +660,7 @@ class ShutTheBoxApi(remote.Service):
 
         # if no users have completed games quit early
         if not leaderboard:
-            return TotalLeaderboardResultForm(message="No rankable players"\
+            return TotalLeaderboardResultForm(message="No rankable users"\
                                               "yet!")
 
         # Now to sort the results in this specific way
@@ -722,8 +717,8 @@ class ShutTheBoxApi(remote.Service):
                       name='game_history',
                       http_method='POST')
     def get_game_history(self, request):
-        """Returns the history of moves for the game passed in, allowing a game
-        to be replayed and watched move by move.
+        """Returns the history of moves for the game passed in, allowing game
+        progression to be viewed move by move.
 
         :param urlsafe_key (req): This is the urlsafe_key returned
         from calling new_game().  It serves as the state token for a single
@@ -735,11 +730,11 @@ class ShutTheBoxApi(remote.Service):
         :rtype turns: list
         :returns turn: The turn number.
         :rtype turn: integer
-        :returns roll: A list of the dice roll.
+        :returns roll: The dice roll for that turn.
         :rtype roll: list of non-negative integers
         :returns tiles_played: The tiles flipped that turn.
         :rtype tiles_played: a list of non-negative integers.
-        :returns score: a running sum of the active_tiles in play
+        :returns score: A running total of the active tiles in play.
         :rtype score: non-negative integer
         :returns game_over: If True, game is over.  If False,
         more turns can be played.
@@ -788,7 +783,7 @@ class ShutTheBoxApi(remote.Service):
         return AllTurnsReportResultForm(
             turns=[turn.to_turn_report_result_form() for turn in turns])
 
-
+    # # ONLY UNCOMMENT/IMPORT THE MODULES BELOW IF USING THE test_method
     # @endpoints.method(request_message=INSERT_OR_DELETE_REQUEST,
     #                   response_message=InsertOrDeleteDataResultForm,
     #                   path='test_method',
