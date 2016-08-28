@@ -10,19 +10,6 @@ Start playing [here](https://apis-explorer.appspot.com/apis-explorer/?base=https
 * Users receive email notifications for incomplete games with turns more than 12 hours passed.
 * A leaderboard features a list of users ranked by average score and average number of turns.
 
-## Configuring a development environment
-1. Download the github repository
-2. Navigate to the top-level directory and boot up the app with the command `python lizardCatalog.py`. Press ctrl+c to shut down the app.
-3. Open an internet browser and enter the url `localhost:8000`.
-
-## Test Data
-If you want to populate the lizard database with data automatically, use the [testData.py](https://github.com/snackattas/LizardApp/blob/master/testData.py)  script.  
-Here's how to run the script:
-
-1. First follow the setup steps to get the app up and running.
-2. Create a user by logging into the web app.  Record the user id of your user.  It will be shown in the flash message.
-3. In the top-level directory, run this command `python testData.py [user id]` subbing in "user id" with your user id.
-
 ## Technologies used
 * [Google App Engine](https://cloud.google.com/appengine/)
 * [Google Cloud Endpoints](https://cloud.google.com/endpoints/)
@@ -97,9 +84,72 @@ Searches for games matching the passed in search criteria and returns basic info
   * username (string, opt): Filters by username.
 * Returns
   * games: A list of games. Each game is made up of the parameters below.
-   * urlsafe_key: The state token for this game of Shut The Box.
-   * number_of_tiles: Number of tiles for this game.
-   * dice_operation: Dice operation for this game.
-   * game_over: If true, this game is over.
-   * turns_played: Number of turns played for this game.
+    * urlsafe_key: The state token for this game of Shut The Box.
+    * number_of_tiles: Number of tiles for this game.
+    * dice_operation: Dice operation for this game.
+    * game_over: If true, this game is over.
+    * turns_played: Number of turns played for this game.
 * Raises: NotFoundException, BadRequestException
+
+### get_user_stats
+Returns user statistics for a particular user.  The statistics are games completed, total score, total turns, average score, and average turns.  Able to filter by dice operation and/or number of dice.
+* Args
+  * username (string, req): A unique username.
+  * number_of_tiles (enum, opt): Filters games by number of tiles.
+  * dice_operation (enum, opt): Filters games by dice operation.
+* Returns
+  * games_completed: Number of games completed.
+  * total_score: Total score of completed games.
+  * total_turns: Total number of turns for completed games.
+  * average_score: Average score from completed games, rounded to 3 decimal places.
+  * average_turns: Average turns from completed games, rounded to 3 decimal places.
+  * message: Helpful error message.
+* Raises: NotFoundException
+
+### get_high_scores
+Returns a list of games in order of high score, with details about the game.  In Shut The Box, lower scores are better, so a list of high scores is a list of the scores from lowest to highest.  In the case of a tie, order is determined by which game finished first.
+The list of high scores is able to be filtered by dice operation and/or number of tiles.
+* Args
+  * number_of_tiles (enum, opt): Filters games by number of tiles.
+  * dice_operation (enum, opt): Filters games by dice operation.
+  * number_of_results (int, opt): Default is 20.  Number of high scores to return.
+* Returns
+  * high_scores: List of games ordered by high scores.  Each game is made up of the parameters below:
+    * score: The final score.
+    * username: The user who played this game.
+    * number_of_tiles: Number of tiles for this game.
+    * dice_operation: Dice operation for this game.
+    * timestamp: The date and time when the game was completed.
+  * message: Helpful error message
+* Raises: BadArgumentError
+
+### get_leaderboard
+List of ranked users.  Users are ranked by average score from low to high, and in the case of a tie in average score, the rank is determined by lowest average turns.  Users are only able to be ranked if they have completed 5 or more games.  The leaderboard is able to be filtered by games with certain dice operation and/or number of tiles.
+* Args
+  * number_of_tiles (enum, opt): Filters leaderboard by number of tiles.
+  * dice_operation (enum, opt): Filters leaderboard by dice operation.
+  * username (str, opt):  If specified returns rank of only that user.
+* Returns
+  * ranked_users: List of users ordered by rank.  Each user is made up of the parameters below.
+    * username: A unique username.
+    * total_score: Total score of completed games.
+    * total_turns: Total number of turns for completed games.
+    * average_score: Average score from completed games, rounded to 3 decimal places.
+    * average_turns: Average turns from completed games, rounded to 3 decimal places.
+    * games_completed: Number of games completed.
+    * rank: Rank of the user.
+  * message: Helpful error message
+* Raises: NotFoundException
+
+### get_game_history
+Returns the history of moves for the game passed in, allowing game progression to be viewed move by move.
+* Args
+  * urlsafe_key (string, req): The state token for a game of Shut The Box.
+* Returns
+  * turns: List of turns for a specific game.  Each turn is made up of the parameters below.
+    * turn: The turn number. Turn 0 is the first roll, and does not have tiles played.  Each subsequent turn has both a roll and tiles played.
+    * roll: The dice roll for this turn.
+    * tiles_played: The tiles flipped this turn.
+    * score: A running total of the active tiles in play.
+    * game_over: If True, game ended with this turn.
+* Raises: BadRequestException, ValueError
