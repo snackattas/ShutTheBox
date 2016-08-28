@@ -1,0 +1,20 @@
+Additional properties in my models:
+* In User
+o I added an email_notification property so that if a user wanted to, they could opt of the email notifications.
+* In Game
+o I removed the user property because games are already children of User, so if I need to get a particular user from a game I can just run a query
+o I don’t have a score entity, so my Game entity has a property called final_score, where the final score is placed once a game is over
+o I added a timestamp property because it is useful metadata.  It simply indicates when the game was first created.
+* In Turn
+o I suppose this entire entity serves the purpose of the guesses property in the Skeleton project’s Score entity. It shows the progression of a game of shut the box
+o Each Turn entity is a child of its Game entity, which is a key feature in how the game is designed.  Users pass in the ursafe_key of the Game entity, and then the game.most_recent_turn() method retrieves the last child Turn, which drives the gameplay.
+o The turn property just stores which turn the Turn entity is.  
+o The roll property stores the dice roll
+o Active_tiles stores the tiles that are in play and not flipped
+o Turn_over stores whether the roll has been played correctly or not.  It’s important for the logic in the turn method
+o Game_over stores whether this turn is the one that ends the game or not.
+o Timestamp stores each time the entity is touched. 
+Trade-offs/struggles:
+* Adding fake data into the game programmatically was very challenging.  Needed to create a fake endpoint to have access to the proper context to use the models.
+* The logic of the game itself was not too difficult to implement. What I struggled with was deciding where to put the game logic.  My turn method is very big.  I wonder if I should have abstracted more of the gameplay logic into methods in the Turn class in models.  Or made the interplay between the turn method and the Turn class more clear.
+* I still can’t figure out how to create GET endpoints with multiple parameters.  I tried many different ways of doing it and none of them worked.  So many of my endpoints are POSTS, when they should probably be GETs. 
