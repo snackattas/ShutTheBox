@@ -34,11 +34,11 @@ Here's how to run the script:
 ###create_user
 Creates a user
 * Args
-** username (string, req): A unique username without leading spaces.
-** email (string, opt): A unique and valid email.  Email is validated using MAILGUN email validation API.
-** email_notification (boolean, opt): True by default.  If true, user will receive email notifications of outstanding active games.
+  * username (string, req): A unique username without leading spaces.
+  * email (string, opt): A unique and valid email.  Email is validated using MAILGUN email validation API.
+  * email_notification (boolean, opt): True by default.  If true, user will receive email notifications of outstanding active games.
 * Returns
-** message: A message confirming user was created, or an error
+  * message: A message confirming user was created, or an error
 #### registerPlayer(player_name, tournament_id)
 Adds a player to a specific tournament. The database assigns a unique ID number to the player. Different players may have the same names but will receive different ID numbers.
 #### countPlayers(tournament_id)
