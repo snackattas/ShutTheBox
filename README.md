@@ -167,3 +167,11 @@ Returns the history of moves for the game passed in, allowing game progression t
     * score: A running total of the active tiles in play.
     * game_over: If True, game ended with this turn.
 * Raises: BadRequestException, ValueError
+
+## Notes on Testing Shut The Box Locally
+* Chrome has a bug in testing Cloud Endpoints locally.  Call chrome like this in the run terminal to open Cloud Endpoints:
+`[path-to-Chrome] --user-data-dir=test --unsafely-treat-insecure-origin-as-secure=http://localhost:port`
+* Run this command while directly outside the ShutTheBox main directory torun the app: `dev_appserver.py ShutTheBox/`
+* Follow these instructions to run Google App Engine with an email server, so the SendReminderEmail class functions as designed:
+  * https://support.google.com/mail/troubleshooter/1668960?hl=en&rd=1
+  * http://stackoverflow.com/questions/38671257/send-email-from-python-webapp2-google-app-engine
