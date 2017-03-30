@@ -1,3 +1,6 @@
+# *UPDATE*
+Shut The Box now has a live GUI! Check it out [here](http://shutthebox.herokuapp.com)!  The repo for the GUI is [here](https://www.github.com/snackattas/shuttheboxclient).  GUI is built with Node.js, Express Server, Heroku, Semantic UI, and Promises.js
+
 # Shut The Box
 This is a set of methods implementing the gameplay of the classic British pub game [Shut The Box](https://en.wikipedia.org/wiki/Shut_the_Box), created as project 8 of Udacity's [Full Stack Web Developer Nanodegree](https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd004).  The entire game is implemented on the server side through Google's Cloud Endpoints.  
 
